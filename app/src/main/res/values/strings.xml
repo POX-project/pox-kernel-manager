@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Pox</string>
+    <string name="dashboard">Dashboard</string>
+    <string name="features">Tuning</string>
+    <string name="updater">Updater</string>
+    <string name="diagnostics">Diagnostics</string>
+</resources>
