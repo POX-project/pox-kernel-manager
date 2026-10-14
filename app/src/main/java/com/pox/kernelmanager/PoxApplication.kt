@@ -1,7 +1,7 @@
 package com.pox.kernelmanager
 
 import android.app.Application
-import com.topjohnwu.superuser.Shell
+import com.pox.kernelmanager.data.root.ShellUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -17,26 +17,10 @@ class PoxApplication : Application() {
         super.onCreate()
         instance = this
 
-        // Configure libsu root shell builder
-        try {
-            Shell.enableVerboseLogging = BuildConfig.DEBUG
-            Shell.setDefaultBuilder(
-                Shell.Builder.create()
-                    .setTimeout(10)
-            )
-        } catch (_: Throwable) {
-            // Already initialized
-        }
-
-        // Check if su binary exists before attempting pre-warming
+        // Touching ShellUtils installs the libsu builder; pre-warm the root shell so
+        // the first dashboard read does not pay for the su prompt.
         CoroutineScope(Dispatchers.IO).launch {
-            try {
-                if (Shell.isAppGrantedRoot() == true) {
-                    Shell.getShell()
-                }
-            } catch (_: Throwable) {
-                // Device is unrooted or permission denied - safe fallback
-            }
+            ShellUtils.prewarm()
         }
     }
 }

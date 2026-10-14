@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.pox.kernelmanager.data.model.DeviceInfo
 import com.pox.kernelmanager.data.model.HardwareStats
 import com.pox.kernelmanager.data.repo.HardwareRepository
+import com.pox.kernelmanager.data.root.ShellUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,8 +26,20 @@ class DashboardViewModel : ViewModel() {
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
     init {
-        loadInitialData()
+        refresh()
         startHardwareMonitorLoop()
+    }
+
+    /**
+     * Drop the cached probe and reload.
+     *
+     * Called on every resume because root can be granted while the app is in the
+     * background; without this the denial from the previous foreground session
+     * would still be in effect.
+     */
+    fun onAppForegrounded() {
+        ShellUtils.invalidateCache()
+        refresh()
     }
 
     fun refresh() {
@@ -34,24 +47,12 @@ class DashboardViewModel : ViewModel() {
             _uiState.value = _uiState.value.copy(isLoading = true)
             val info = HardwareRepository.getDeviceInfo()
             val stats = HardwareRepository.getHardwareStats()
-            _uiState.value = DashboardUiState(
+            _uiState.value = _uiState.value.copy(
                 deviceInfo = info,
                 stats = stats,
                 isLoading = false,
-                isRootGranted = info.rootProvider != com.pox.kernelmanager.data.model.RootProvider.ROOTLESS
-            )
-        }
-    }
-
-    private fun loadInitialData() {
-        viewModelScope.launch {
-            val info = HardwareRepository.getDeviceInfo()
-            val stats = HardwareRepository.getHardwareStats()
-            _uiState.value = DashboardUiState(
-                deviceInfo = info,
-                stats = stats,
-                isLoading = false,
-                isRootGranted = info.rootProvider != com.pox.kernelmanager.data.model.RootProvider.ROOTLESS
+                // Whether *this app* holds root, not whether some framework is installed.
+                isRootGranted = info.rootGranted
             )
         }
     }

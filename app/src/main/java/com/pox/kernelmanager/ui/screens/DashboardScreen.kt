@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -15,7 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.pox.kernelmanager.data.model.RootProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pox.kernelmanager.ui.components.PoxTopAppBar
 import com.pox.kernelmanager.ui.components.SectionHeader
 import com.pox.kernelmanager.ui.components.StatCard
@@ -29,6 +32,16 @@ fun DashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
+
+    // Root can be granted while the app is backgrounded, so re-probe on resume.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onAppForegrounded()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         topBar = {
@@ -102,6 +115,14 @@ fun DashboardScreen(
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
                         modifier = Modifier.padding(top = 4.dp)
                     )
+                    if (uiState.deviceInfo.rootProviderVersion.isNotBlank()) {
+                        Text(
+                            text = uiState.deviceInfo.rootProviderVersion,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
                     // Badges row
@@ -109,9 +130,12 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
+                        // UNKNOWN is a framework we could not identify, not a rooted device:
+                        // showing it as an active badge used to report a false positive.
                         StatusBadge(
                             text = uiState.deviceInfo.rootProvider.displayName,
-                            isActive = uiState.deviceInfo.rootProvider != RootProvider.ROOTLESS,
+                            isActive = uiState.deviceInfo.rootProvider.isRooted &&
+                                    uiState.deviceInfo.rootGranted,
                             activeColor = MaterialTheme.colorScheme.primary
                         )
                         StatusBadge(
