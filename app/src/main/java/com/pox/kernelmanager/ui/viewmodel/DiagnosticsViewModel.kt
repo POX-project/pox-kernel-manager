@@ -3,6 +3,8 @@ package com.pox.kernelmanager.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pox.kernelmanager.data.repo.DownloadsStore
+import com.pox.kernelmanager.data.root.KernelNodes
+import com.pox.kernelmanager.data.root.NodeStatus
 import com.pox.kernelmanager.data.root.ShellUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +19,8 @@ data class DiagnosticsUiState(
     val selinuxMode: String = "Enforcing",
     val isRootGranted: Boolean = false,
     val isExporting: Boolean = false,
-    val exportMessage: String? = null
+    val exportMessage: String? = null,
+    val nodeReport: List<NodeStatus> = emptyList()
 )
 
 class DiagnosticsViewModel : ViewModel() {
@@ -29,9 +32,16 @@ class DiagnosticsViewModel : ViewModel() {
         loadDiagnostics()
     }
 
+    fun onAppForegrounded() {
+        ShellUtils.invalidateCache()
+        KernelNodes.invalidate()
+        loadDiagnostics()
+    }
+
     fun loadDiagnostics() {
         viewModelScope.launch {
             val root = ShellUtils.isRootAvailable()
+            val report = ShellUtils.nodeReport(KernelNodes.probedNodes())
             val selinux = ShellUtils.detectSELinux()
             val dmesg = if (root) {
                 ShellUtils.runCommand("dmesg | tail -n 80").output
@@ -41,7 +51,8 @@ class DiagnosticsViewModel : ViewModel() {
             _uiState.value = DiagnosticsUiState(
                 dmesgLogs = dmesg,
                 selinuxMode = selinux,
-                isRootGranted = root
+                isRootGranted = root,
+                nodeReport = report
             )
         }
     }
@@ -88,6 +99,13 @@ class DiagnosticsViewModel : ViewModel() {
                     appendLine("\n[MEMINFO]\n$meminfo")
                     appendLine("\n[MOUNTS]\n$mounts")
                     appendLine("\n[DMESG]\n$dmesg")
+                    appendLine("\n[KERNEL NODE REPORT]")
+                    rootEnv.nodeReport.forEach { node ->
+                        appendLine(
+                            "  ${if (node.exists) "PRESENT" else "ABSENT "} " +
+                                "rw=${node.writable} ${node.path} ${node.sample.orEmpty()}"
+                        )
+                    }
                 }
 
                 // Routed through MediaStore: a direct File write to /sdcard/Download

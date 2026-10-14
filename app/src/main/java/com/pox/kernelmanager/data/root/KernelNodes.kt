@@ -148,6 +148,26 @@ object KernelNodes {
     }
 
     /**
+     * Every node this build probes, in the order it is checked.
+     *
+     * Surfaced through the diagnostics screen so a device report shows what is
+     * really there rather than an inferred support matrix.
+     */
+    fun probedNodes(): List<String> = listOf(
+        BOOST_FG,
+        USRTCH,
+        USRTCH_DEBUG,
+        FPS_144,
+        FPS_FORCE_DISABLE,
+        PERF_IOCTL,
+        "/proc/perfmgr/tchbst/kernel/tb_enable",
+        "/sys/kernel/dyn_fsync/Dyn_fsync_active",
+        "/dev/memcg/memory.xswapd.enable",
+        "/sys/block/zram0/disksize",
+        "/sys/block/zram0/mm_stat"
+    )
+
+    /**
      * Render a sysfs selection list with [target] bracketed.
      *
      * The kernel expects the whole list back with the new entry marked, which is
@@ -184,6 +204,14 @@ object KernelNodes {
     }
 
     private suspend fun probe(): Map<TuningFeature, Boolean> {
+        // Root is a precondition for every probe below. Without it libsu silently
+        // falls back to a plain non-root `sh`, every `test -w` fails, and the UI
+        // blames the kernel for a problem that is really "this app is not rooted".
+        // Check once up front so that case is reported honestly and cheaply.
+        if (!ShellUtils.isRootAvailable()) {
+            return TuningFeature.entries.associateWith { false }
+        }
+
         val writable: suspend (String) -> Boolean = { ShellUtils.nodeExists(it) }
 
         // Kernel touch boost is compiled out on begonia, so only accept tb_enable

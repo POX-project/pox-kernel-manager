@@ -65,6 +65,11 @@ fun FeaturesScreen(
                 .padding(paddingValues)
                 .verticalScroll(scrollState)
         ) {
+            RootStatusBanner(
+                granted = uiState.features.rootGranted,
+                providerLabel = uiState.features.rootProviderLabel
+            )
+
             // 1. Gaming Mode & KProfiles
             SectionHeader(
                 title = "Gaming & Performance Governor",

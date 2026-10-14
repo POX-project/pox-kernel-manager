@@ -72,12 +72,38 @@ data class TuningFeatures(
 
     val zramSizeMb: Long = 0,
 
+    /**
+     * Whether this app holds an active root shell.
+     *
+     * Kept separate from [unsupported] because libsu silently falls back to a
+     * plain `sh` when `su` is denied. Without this, "Magisk has not granted root
+     * to the app" was indistinguishable from "this kernel has no such node", and
+     * every control was greyed out with the wrong explanation.
+     */
+    val rootGranted: Boolean = false,
+
+    /** Root provider detected, for the status line. */
+    val rootProviderLabel: String = "",
+
     /** Features this kernel does not implement, so the UI can disable them. */
     val unsupported: Set<TuningFeature> = emptySet()
 ) {
-    fun isSupported(feature: TuningFeature): Boolean = feature !in unsupported
+    /**
+     * Whether a control can be used.
+     *
+     * Without root nothing can be written regardless of what the kernel has, so
+     * the root check comes first.
+     */
+    fun isSupported(feature: TuningFeature): Boolean =
+        rootGranted && feature !in unsupported
 
     /** Why a control is disabled, for display next to it. */
-    fun reasonFor(feature: TuningFeature): String? =
-        if (feature in unsupported) feature.unsupportedReason else null
+    fun reasonFor(feature: TuningFeature): String? = when {
+        !rootGranted ->
+            "Pox Kernel Manager has not been granted root. Open Magisk > Superuser, " +
+                "grant this app, then reopen it. If Zygisk is enabled, make sure " +
+                "the app is not on the enforce-denylist."
+        feature in unsupported -> feature.unsupportedReason
+        else -> null
+    }
 }

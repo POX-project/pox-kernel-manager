@@ -74,6 +74,7 @@ object TuningRepository {
 
     suspend fun getTuningFeatures(): TuningFeatures = withContext(Dispatchers.IO) {
         val isRoot = ShellUtils.isRootAvailable()
+        val rootEnv = ShellUtils.environment()
         val support = KernelNodes.support()
 
         // Gaming mode is derived from the live EAS boost the kernel reports,
@@ -161,6 +162,8 @@ object TuningRepository {
             cpuGovernor = activeGovernor,
             availableGovernors = governorOptions,
             zramSizeMb = zramSize,
+            rootGranted = isRoot,
+            rootProviderLabel = rootEnv.provider.displayName,
             unsupported = support.filterValues { !it }.keys
         )
     }
