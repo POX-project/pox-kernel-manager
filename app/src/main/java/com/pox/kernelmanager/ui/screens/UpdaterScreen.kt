@@ -197,7 +197,7 @@ fun UpdaterScreen(
                             }
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = state.file.name,
+                                text = state.savedLocation,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )

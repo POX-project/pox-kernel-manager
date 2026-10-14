@@ -1,11 +1,12 @@
 package com.pox.kernelmanager.ui.viewmodel
 
-import android.os.Environment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.pox.kernelmanager.PoxApplication
 import com.pox.kernelmanager.data.model.GithubRelease
 import com.pox.kernelmanager.data.model.KernelPackageItem
 import com.pox.kernelmanager.data.model.UpdateState
+import com.pox.kernelmanager.data.repo.DownloadsStore
 import com.pox.kernelmanager.data.repo.HardwareRepository
 import com.pox.kernelmanager.data.repo.KernelUpdateRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,11 +75,11 @@ class UpdaterViewModel : ViewModel() {
         val item = _selectedPackage.value ?: return
         viewModelScope.launch {
             try {
-                val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                    ?: File("/sdcard/Download")
-                val destFile = File(downloadDir, item.zipName)
+                // Stream into app cache first: it is always writable, and the
+                // integrity check must run before anything reaches shared storage.
+                val cacheFile = File(PoxApplication.instance.cacheDir, item.zipName)
 
-                KernelUpdateRepository.downloadPackageWithProgress(item.downloadUrl, destFile)
+                KernelUpdateRepository.downloadPackageWithProgress(item.downloadUrl, cacheFile)
                     .collect { progress ->
                         _updateState.value = UpdateState.Downloading(
                             packageName = item.zipName,
@@ -90,13 +91,23 @@ class UpdaterViewModel : ViewModel() {
                     }
 
                 // Verify SHA-256
-                val isVerified = KernelUpdateRepository.verifySha256(destFile, item.sha256)
+                val isVerified = KernelUpdateRepository.verifySha256(cacheFile, item.sha256)
                 if (!isVerified && item.sha256.isNotEmpty()) {
+                    cacheFile.delete()
                     _updateState.value = UpdateState.Error("SHA-256 integrity check failed!")
                     return@launch
                 }
 
-                _updateState.value = UpdateState.DownloadCompleted(destFile, item.sha256)
+                // Publish to Downloads via MediaStore. Writing straight to
+                // Environment.getExternalStoragePublicDirectory() throws under
+                // scoped storage on API 29+.
+                val location = DownloadsStore.write(
+                    fileName = item.zipName,
+                    mimeType = "application/zip",
+                    content = cacheFile.readBytes()
+                )
+
+                _updateState.value = UpdateState.DownloadCompleted(cacheFile, location)
             } catch (e: Exception) {
                 _updateState.value = UpdateState.Error("Download error: ${e.message}")
             }
