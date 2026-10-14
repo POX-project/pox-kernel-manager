@@ -30,7 +30,7 @@ data class DeviceInfo(
  */
 enum class RootProvider(val displayName: String, val managerPackages: List<String>) {
 
-    APATCH("APatch", listOf("me.bmax.apatch")),
+    APATCH("APatch", listOf("me.bmax.apatch", "me.yuki.folk")),
 
     KERNELPATCH("KernelPatch", listOf("me.bmax.kernelpatch")),
 

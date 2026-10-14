@@ -50,42 +50,43 @@ object ShellUtils {
     private val PROBE_SCRIPT: String = buildString {
         appendLine("echo \"${PROBE_PREFIX}uid=\$(id -u 2>/dev/null)\"")
 
-        // APatch proper owns /data/adb/ap. /dev/kp alone is KernelPatch, not APatch.
+        // Magisk: running daemon and version check
+        appendLine("MAGISK_V=\$(magisk -v 2>/dev/null)")
+        appendLine("[ -n \"\$MAGISK_V\" ] && echo \"${PROBE_PREFIX}magisk_ver=\$MAGISK_V\"")
+        appendLine("[ -e /dev/.magisk ] && echo \"${PROBE_PREFIX}magisk_dev=1\"")
+        appendLine("[ -d /data/adb/magisk ] && echo \"${PROBE_PREFIX}magisk_dir=1\"")
+        appendLine("[ -e /dev/.magisk-unblock ] && echo \"${PROBE_PREFIX}magisk_unblock=1\"")
+        appendLine("pidof magiskd >/dev/null 2>&1 && echo \"${PROBE_PREFIX}magiskd_running=1\"")
+
+        // KernelPatch / APatch: REQUIRES active /dev/kp character device
+        appendLine("[ -e /dev/kp ] && echo \"${PROBE_PREFIX}kp=1\"")
         appendLine("[ -d /data/adb/ap ] && echo \"${PROBE_PREFIX}ap_dir=1\"")
         appendLine("[ -x /data/adb/ap/bin/apd ] && echo \"${PROBE_PREFIX}apd=1\"")
         appendLine("[ -x /data/adb/ap/bin/apstat ] && echo \"${PROBE_PREFIX}apstat=1\"")
         appendLine("[ -d /data/adb/ap/modules ] && echo \"${PROBE_PREFIX}ap_modules=1\"")
-        // KernelPatch supercall device: present under APatch too, so it is a fallback only.
-        appendLine("[ -e /dev/kp ] && echo \"${PROBE_PREFIX}kp=1\"")
 
-        // KernelSU lineage. /data/adb/ksu/bin/ksud is the canonical daemon link.
+        // KernelSU lineage: REQUIRES active /sys/module/kernelsu driver
+        appendLine("[ -e /sys/module/kernelsu ] && echo \"${PROBE_PREFIX}ksu_lkm=1\"")
         appendLine("[ -x /data/adb/ksud ] && echo \"${PROBE_PREFIX}ksud=1\"")
         appendLine("[ -x /data/adb/ksu/bin/ksud ] && echo \"${PROBE_PREFIX}ksud_bin=1\"")
         appendLine("[ -d /data/adb/ksu ] && echo \"${PROBE_PREFIX}ksu_dir=1\"")
         appendLine("[ -e /data/adb/ksu/.ksurc ] && echo \"${PROBE_PREFIX}ksurc=1\"")
-        appendLine("[ -e /sys/module/kernelsu ] && echo \"${PROBE_PREFIX}ksu_lkm=1\"")
-        // BakaSU-only artifacts (see userspace/ksud/src/defs.rs upstream).
         appendLine("[ -e /data/adb/ksu/lib/libadbroot.so ] && echo \"${PROBE_PREFIX}adbroot=1\"")
         appendLine("[ -e /data/adb/ksu/.dynamic_manager ] && echo \"${PROBE_PREFIX}dynamic_mgr=1\"")
         appendLine("[ -d /data/adb/ksu/module_configs ] && echo \"${PROBE_PREFIX}module_configs=1\"")
         appendLine("[ -e /data/adb/ksu/sulogd.lock ] && echo \"${PROBE_PREFIX}sulogd_lock=1\"")
 
-        // Modules and metamodule (MKSU ships as a metamodule rather than a manager).
+        // Modules & Zygisk
+        appendLine("grep -s -q 'zygisk' /data/adb/magisk/zygisk/* /data/adb/modules/*/module.prop 2>/dev/null && echo \"${PROBE_PREFIX}zygisk=1\"")
         appendLine("echo \"${PROBE_PREFIX}module_count=\$(ls -1 /data/adb/modules 2>/dev/null | wc -l | tr -d ' ')\"")
         appendLine("echo \"${PROBE_PREFIX}metamodule=\$(ls -1 /data/adb/metamodule 2>/dev/null | head -n 1)\"")
 
-        // Magisk.
-        appendLine("[ -e /dev/.magisk ] && echo \"${PROBE_PREFIX}magisk_dev=1\"")
-        appendLine("[ -d /data/adb/magisk ] && echo \"${PROBE_PREFIX}magisk_dir=1\"")
-        appendLine("[ -e /dev/.magisk-unblock ] && echo \"${PROBE_PREFIX}magisk_unblock=1\"")
-        appendLine("grep -s -q 'zygisk' /data/adb/magisk/zygisk/* /data/adb/modules/*/module.prop 2>/dev/null && echo \"${PROBE_PREFIX}zygisk=1\"")
-
-        // Legacy su binaries: presence alone, but useful as a last resort.
+        // Legacy su binaries
         appendLine("for s in /system/bin/su /system/xbin/su /sbin/su /vendor/bin/su /debug_ramdisk/su /system/sbin/su /product/bin/su; do")
         appendLine("  [ -x \"\$s\" ] && echo \"${PROBE_PREFIX}su_bin=\$s\"")
         appendLine("done")
 
-        // Installed managers, as a single `pm` call piped through the known ids.
+        // Installed managers
         appendLine("pm list packages 2>/dev/null | sed -n 's/^package://p' | " +
             "grep -E '^(package:)?(${RootProvider.MANAGER_PACKAGES.joinToString("|") { Regex.escape(it) }})\$' | " +
             "sed 's/^package://' | sed 's/^/${PROBE_PREFIX}pkg=/'")
@@ -108,15 +109,10 @@ object ShellUtils {
 
     init {
         Shell.enableVerboseLogging = false
-        // Single source of truth for the shell config. PoxApplication used to set a
-        // second builder; because this object initialises lazily, this one always won
-        // and the Application's timeout was dead code.
         runCatching {
             Shell.setDefaultBuilder(
                 Shell.Builder.create()
                     .setTimeout(15)
-                    // Prefer `su --mount-master` so the probe can see the global mount
-                    // namespace and read /data/adb/*. libsu falls back to plain `su`.
                     .setFlags(Shell.FLAG_MOUNT_MASTER)
             )
         }
@@ -133,13 +129,6 @@ object ShellUtils {
         cached = null
     }
 
-    /**
-     * Probe the root environment, reusing a recent result.
-     *
-     * The previous implementation cached the result forever and nothing ever
-     * called `clearRootCache`, so a single denial at startup pinned the app to
-     * "Unrooted" for the rest of the process even after the user granted root.
-     */
     suspend fun environment(): RootEnvironment = withContext(Dispatchers.IO) {
         probeMutex.withLock {
             val now = SystemClock.elapsedRealtime()
@@ -166,9 +155,7 @@ object ShellUtils {
             .map { it.value }
             .toSet()
 
-        val provider = classifyByPackage(packages)
-            ?: classifyByMarkers(probes)
-            ?: RootProvider.UNKNOWN
+        val provider = classifyRoot(probes, packages)
 
         return RootEnvironment(
             provider = provider,
@@ -194,10 +181,50 @@ object ShellUtils {
         return map
     }
 
-    /**
-     * Manager package ids are authoritative: every framework ships one canonical
-     * manager, whereas all KernelSU forks share the same on-disk layout.
-     */
+    private fun classifyRoot(probes: Map<String, String>, packages: Set<String>): RootProvider {
+        val hasMagisk = "magisk_ver" in probes || "magiskd_running" in probes || "magisk_dev" in probes
+        val hasKp = "kp" in probes
+        val hasKsuDriver = "ksu_lkm" in probes
+
+        // 1. If Magisk daemon is running and kernel has no KP or KSU driver active, it is Magisk
+        if (hasMagisk && !hasKp && !hasKsuDriver) {
+            return RootProvider.MAGISK
+        }
+
+        // 2. KernelPatch / APatch requires the kernel character device /dev/kp
+        if (hasKp) {
+            val isApatch = "apd" in probes || "ap_dir" in probes ||
+                "me.bmax.apatch" in packages || "me.yuki.folk" in packages
+            return if (isApatch) RootProvider.APATCH else RootProvider.KERNELPATCH
+        }
+
+        // 3. KernelSU requires /sys/module/kernelsu
+        if (hasKsuDriver) {
+            val bakasu = "adbroot" in probes || "dynamic_mgr" in probes ||
+                "com.resukisu.resukisu" in packages || "org.bakasu.bakasu" in packages
+            val ksuNext = "com.rifsxd.ksunext" in packages
+            val sukisu = "com.sukisu.ultra" in packages
+            return when {
+                bakasu -> RootProvider.BAKASU
+                ksuNext -> RootProvider.KERNELSU_NEXT
+                sukisu -> RootProvider.SUKISU_ULTRA
+                else -> RootProvider.KERNELSU
+            }
+        }
+
+        // 4. If Magisk is present in any form
+        if (hasMagisk || "magisk_dir" in probes || "com.topjohnwu.magisk" in packages) {
+            return RootProvider.MAGISK
+        }
+
+        // 5. Fallback to package detection
+        val byPkg = classifyByPackage(packages)
+        if (byPkg != null) return byPkg
+
+        // 6. Fallback to markers
+        return classifyByMarkers(probes) ?: RootProvider.UNKNOWN
+    }
+
     private fun classifyByPackage(packages: Set<String>): RootProvider? {
         if (packages.isEmpty()) return null
         for (provider in RootProvider.values()) {
@@ -206,36 +233,31 @@ object ShellUtils {
         return null
     }
 
-    /** Fallback for a rooted device whose manager has been uninstalled. */
     private fun classifyByMarkers(probes: Map<String, String>): RootProvider? = when {
-        "ap_dir" in probes || "apd" in probes || "apstat" in probes -> RootProvider.APATCH
-        "kp" in probes -> RootProvider.KERNELPATCH
-        "ksud" in probes || "ksud_bin" in probes || "ksu_dir" in probes ||
-            "ksurc" in probes || "ksu_lkm" in probes -> {
+        "kp" in probes -> {
+            if ("apd" in probes || "ap_dir" in probes) RootProvider.APATCH else RootProvider.KERNELPATCH
+        }
+        "ksu_lkm" in probes -> {
             val bakasu = "adbroot" in probes || "dynamic_mgr" in probes ||
                 "module_configs" in probes || "sulogd_lock" in probes
             if (bakasu) RootProvider.BAKASU else RootProvider.KERNELSU
         }
-        "magisk_dev" in probes || "magisk_dir" in probes -> RootProvider.MAGISK
+        "magisk_dev" in probes || "magisk_dir" in probes || "magisk_ver" in probes -> RootProvider.MAGISK
         "su_bin" in probes -> RootProvider.SUPERSU
         else -> null
     }
 
-    /**
-     * Ask the framework for its own version.
-     *
-     * The old code ran `cat /data/adb/ksu/bin/ksud -V`, which asks `cat` to print
-     * a file named `-V`; the flag is meaningless to it and the version string was
-     * never obtained. This executes the daemon instead.
-     */
     private suspend fun fetchVersion(provider: RootProvider, probes: Map<String, String>): String {
         if ("uid" !in probes) return ""
+        if (provider == RootProvider.MAGISK && probes["magisk_ver"] != null) {
+            return probes["magisk_ver"]!!
+        }
         val candidates = when (provider) {
             RootProvider.BAKASU, RootProvider.KERNELSU_NEXT,
             RootProvider.SUKISU_ULTRA, RootProvider.KERNELSU ->
                 listOf("/data/adb/ksu/bin/ksud -V", "/data/adb/ksud -V")
-            RootProvider.APATCH, RootProvider.KERNELPATCH -> listOf("/data/adb/ap/bin/apd -v")
-            RootProvider.MAGISK -> listOf("magisk -v")
+            RootProvider.APATCH, RootProvider.KERNELPATCH -> listOf("/data/adb/ap/bin/apd -V", "/data/adb/apd -V")
+            RootProvider.MAGISK -> listOf("magisk -v", "magisk -V")
             else -> emptyList()
         }
         for (command in candidates) {
@@ -289,12 +311,14 @@ object ShellUtils {
     suspend fun fastRead(path: String): String? = withContext(Dispatchers.IO) {
         val quoted = shellQuote(path)
 
-        // /sys and most of /proc are world-readable; skip a shell spawn for them.
+        // Only attempt direct File read for world-readable paths that won't trigger SELinux denial audits
         try {
-            val file = File(path)
-            if (file.exists() && file.canRead()) {
-                val content = file.bufferedReader().use { it.readText() }.trim()
-                if (content.isNotEmpty()) return@withContext content
+            if (!path.startsWith("/sys/kernel/") && !path.startsWith("/proc/sys/kernel/")) {
+                val file = File(path)
+                if (file.canRead()) {
+                    val content = file.bufferedReader().use { it.readText() }.trim()
+                    if (content.isNotEmpty()) return@withContext content
+                }
             }
         } catch (_: Exception) { }
 
