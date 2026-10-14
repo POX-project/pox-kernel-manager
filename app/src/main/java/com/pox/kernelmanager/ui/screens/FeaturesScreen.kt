@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.pox.kernelmanager.data.model.TuningFeature
 import com.pox.kernelmanager.data.model.GamingModeLevel
 import com.pox.kernelmanager.ui.components.*
 import com.pox.kernelmanager.ui.viewmodel.FeaturesViewModel
@@ -53,7 +54,7 @@ fun FeaturesScreen(
             // 1. Gaming Mode & KProfiles
             SectionHeader(
                 title = "Gaming & Performance Governor",
-                subtitle = "Unified /proc/perfmgr/gaming_mode controller"
+                subtitle = "MediaTek perfmgr EAS boost + FPSGO touch boost"
             )
 
             Card(
@@ -78,6 +79,7 @@ fun FeaturesScreen(
                             SegmentedButton(
                                 selected = uiState.features.gamingMode == level,
                                 onClick = { viewModel.setGamingMode(level) },
+                                enabled = uiState.features.isSupported(TuningFeature.GAMING_MODE),
                                 shape = SegmentedButtonDefaults.itemShape(index = index, count = GamingModeLevel.entries.size)
                             ) {
                                 Text(
@@ -94,7 +96,11 @@ fun FeaturesScreen(
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = uiState.features.gamingMode.description,
+                        text = if (uiState.features.isSupported(TuningFeature.GAMING_MODE)) {
+                            uiState.features.gamingMode.description
+                        } else {
+                            "/proc/perfmgr is unavailable - grant root to enable"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -102,18 +108,18 @@ fun FeaturesScreen(
             }
 
             FeatureSwitchCard(
-                title = "240Hz Touch Gaming & Debounce",
-                description = "Zero-debounce sampling & instant Mali touch frequency ramp",
+                title = "FPSGO Touch Boost",
+                description = "Raises the target OPP on touch via /proc/perfmgr/tchbst/user/usrtch",
                 isChecked = uiState.features.touchBoost240Hz,
-                onCheckedChange = { /* managed via gaming mode */ },
+                onCheckedChange = { viewModel.setTouchBoost(it) },
                 icon = Icons.Default.TouchApp,
-                enabled = false
+                enabled = uiState.features.isSupported(TuningFeature.TOUCH_BOOST)
             )
 
             // 2. Battery & Direct Bypass
             SectionHeader(
                 title = "Smart Battery & Bypass Charging",
-                subtitle = "Direct power to motherboard without battery stress"
+                subtitle = "Not implemented in pox-begonia-kernel"
             )
 
             FeatureSwitchCard(
@@ -121,7 +127,8 @@ fun FeaturesScreen(
                 description = "Power phone directly via charger port, halting battery heating and degradation during gaming or heavy workloads",
                 isChecked = uiState.features.bypassCharging,
                 onCheckedChange = { viewModel.toggleBypassCharging(it) },
-                icon = Icons.Default.ElectricBolt
+                icon = Icons.Default.ElectricBolt,
+                enabled = uiState.features.isSupported(TuningFeature.BYPASS_CHARGING)
             )
 
             FeatureSliderCard(
@@ -131,7 +138,8 @@ fun FeaturesScreen(
                 value = uiState.features.chargeLimitPercent.toFloat(),
                 valueRange = 60f..100f,
                 steps = 7,
-                onValueChange = { viewModel.setChargeLimit(it.toInt()) }
+                onValueChange = { viewModel.setChargeLimit(it.toInt()) },
+                enabled = uiState.features.isSupported(TuningFeature.CHARGE_LIMIT)
             )
 
             FeatureSwitchCard(
@@ -139,7 +147,8 @@ fun FeaturesScreen(
                 description = "Clamps charging current when battery temperature exceeds ${uiState.features.tempLimitC}°C",
                 isChecked = uiState.features.thermalGuardEnabled,
                 onCheckedChange = { viewModel.toggleThermalGuard(it, uiState.features.tempLimitC) },
-                icon = Icons.Default.Thermostat
+                icon = Icons.Default.Thermostat,
+                enabled = uiState.features.isSupported(TuningFeature.THERMAL_GUARD)
             )
 
             // 3. MIUI / HyperOS xswapd Subsystem
@@ -153,7 +162,8 @@ fun FeaturesScreen(
                 description = "Offloads memory swap compression to unbound kernel workers, preventing binder stalls and launcher redraws",
                 isChecked = uiState.features.xswapdEnabled,
                 onCheckedChange = { viewModel.toggleXswapd(it) },
-                icon = Icons.Default.Compress
+                icon = Icons.Default.Compress,
+                enabled = uiState.features.isSupported(TuningFeature.XSWAPD)
             )
 
             Card(
@@ -199,7 +209,7 @@ fun FeaturesScreen(
             // 4. Display, Touch & Vibrator
             SectionHeader(
                 title = "Display, Touch & Haptics",
-                subtitle = "Hardware double-tap to wake, True Tone & motor gain"
+                subtitle = "Not implemented in pox-begonia-kernel"
             )
 
             FeatureSwitchCard(
@@ -207,7 +217,8 @@ fun FeaturesScreen(
                 description = "Wake screen by double tapping touch panel in deep sleep",
                 isChecked = uiState.features.doubleTapToWake,
                 onCheckedChange = { viewModel.toggleDt2w(it) },
-                icon = Icons.Default.TouchApp
+                icon = Icons.Default.TouchApp,
+                enabled = uiState.features.isSupported(TuningFeature.DT2W)
             )
 
             FeatureSwitchCard(
@@ -215,7 +226,8 @@ fun FeaturesScreen(
                 description = "Calibrated D65 color balance reference profile for begonia LCD",
                 isChecked = uiState.features.trueToneDisplay,
                 onCheckedChange = { viewModel.toggleTrueTone(it) },
-                icon = Icons.Default.Palette
+                icon = Icons.Default.Palette,
+                enabled = uiState.features.isSupported(TuningFeature.TRUE_TONE)
             )
 
             FeatureSliderCard(
@@ -225,7 +237,8 @@ fun FeaturesScreen(
                 value = uiState.features.vibratorStrengthPercent.toFloat(),
                 valueRange = 0f..100f,
                 steps = 19,
-                onValueChange = { viewModel.setVibratorStrength(it.toInt()) }
+                onValueChange = { viewModel.setVibratorStrength(it.toInt()) },
+                enabled = uiState.features.isSupported(TuningFeature.VIBRATOR_STRENGTH)
             )
 
             // 5. Storage & Filesystem
@@ -239,7 +252,8 @@ fun FeaturesScreen(
                 description = "Disables synchronous flush when screen is on, flushing immediately when screen goes off",
                 isChecked = uiState.features.dynamicFsync,
                 onCheckedChange = { viewModel.toggleDynamicFsync(it) },
-                icon = Icons.Default.Storage
+                icon = Icons.Default.Storage,
+                enabled = uiState.features.isSupported(TuningFeature.DYNAMIC_FSYNC)
             )
 
             FeatureSliderCard(
@@ -249,7 +263,8 @@ fun FeaturesScreen(
                 value = uiState.features.readAheadKb.toFloat(),
                 valueRange = 64f..512f,
                 steps = 6,
-                onValueChange = { viewModel.setReadAhead(it.toInt()) }
+                onValueChange = { viewModel.setReadAhead(it.toInt()) },
+                enabled = uiState.features.isSupported(TuningFeature.READ_AHEAD)
             )
 
             Spacer(modifier = Modifier.height(24.dp))

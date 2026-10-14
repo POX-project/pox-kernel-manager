@@ -3,6 +3,7 @@ package com.pox.kernelmanager.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pox.kernelmanager.data.model.GamingModeLevel
+import com.pox.kernelmanager.data.model.TuningFeature
 import com.pox.kernelmanager.data.model.TuningFeatures
 import com.pox.kernelmanager.data.repo.TuningRepository
 import com.pox.kernelmanager.data.root.ShellUtils
@@ -27,6 +28,11 @@ class FeaturesViewModel : ViewModel() {
         loadFeatures()
     }
 
+    fun onAppForegrounded() {
+        ShellUtils.invalidateCache()
+        loadFeatures()
+    }
+
     fun loadFeatures() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
@@ -40,115 +46,52 @@ class FeaturesViewModel : ViewModel() {
         }
     }
 
-    fun setGamingMode(level: GamingModeLevel) {
+    /**
+     * Apply a change and then re-read the kernel.
+     *
+     * The previous version copied the requested value into the UI state
+     * optimistically, so a rejected write still rendered as if it had been
+     * applied. Re-reading means the switches always show what the kernel reports.
+     */
+    private fun apply(block: suspend () -> com.pox.kernelmanager.data.repo.TuningApplyResult) {
         viewModelScope.launch {
-            val result = TuningRepository.setGamingMode(level)
+            val result = block()
+            val refreshed = TuningRepository.getTuningFeatures()
             _uiState.value = _uiState.value.copy(
-                features = _uiState.value.features.copy(gamingMode = level),
+                features = refreshed,
                 feedbackMessage = result.message
             )
         }
     }
 
-    fun toggleBypassCharging(enable: Boolean) {
-        viewModelScope.launch {
-            val result = TuningRepository.setBypassCharging(enable)
-            _uiState.value = _uiState.value.copy(
-                features = _uiState.value.features.copy(bypassCharging = enable),
-                feedbackMessage = result.message
-            )
-        }
-    }
+    fun setGamingMode(level: GamingModeLevel) = apply { TuningRepository.setGamingMode(level) }
 
-    fun setChargeLimit(limitPercent: Int) {
-        viewModelScope.launch {
-            val result = TuningRepository.setChargeLimit(limitPercent)
-            _uiState.value = _uiState.value.copy(
-                features = _uiState.value.features.copy(chargeLimitPercent = limitPercent),
-                feedbackMessage = result.message
-            )
-        }
-    }
+    fun setTouchBoost(enable: Boolean) = apply { TuningRepository.setTouchBoost(enable) }
 
-    fun toggleThermalGuard(enable: Boolean, tempLimit: Int) {
-        viewModelScope.launch {
-            val result = TuningRepository.setThermalGuard(enable, tempLimit)
-            _uiState.value = _uiState.value.copy(
-                features = _uiState.value.features.copy(
-                    thermalGuardEnabled = enable,
-                    tempLimitC = tempLimit
-                ),
-                feedbackMessage = result.message
-            )
-        }
-    }
+    fun setFpsCap(enabled: Boolean) = apply { TuningRepository.setFpsCap(enabled) }
 
-    fun toggleXswapd(enable: Boolean) {
-        viewModelScope.launch {
-            val result = TuningRepository.setXswapdEnabled(enable)
-            _uiState.value = _uiState.value.copy(
-                features = _uiState.value.features.copy(xswapdEnabled = enable),
-                feedbackMessage = result.message
-            )
-        }
-    }
+    fun toggleBypassCharging(enable: Boolean) = apply { TuningRepository.setBypassCharging(enable) }
 
-    fun triggerXswapdReclaim() {
-        viewModelScope.launch {
-            val result = TuningRepository.triggerXswapdReclaim()
-            _uiState.value = _uiState.value.copy(feedbackMessage = result.message)
-        }
-    }
+    fun setChargeLimit(limitPercent: Int) = apply { TuningRepository.setChargeLimit(limitPercent) }
 
-    fun toggleDt2w(enable: Boolean) {
-        viewModelScope.launch {
-            val result = TuningRepository.setDoubleTapToWake(enable)
-            _uiState.value = _uiState.value.copy(
-                features = _uiState.value.features.copy(doubleTapToWake = enable),
-                feedbackMessage = result.message
-            )
-        }
-    }
+    fun toggleThermalGuard(enable: Boolean, tempLimit: Int) =
+        apply { TuningRepository.setThermalGuard(enable, tempLimit) }
 
-    fun toggleTrueTone(enable: Boolean) {
-        viewModelScope.launch {
-            val result = TuningRepository.setTrueTone(enable)
-            _uiState.value = _uiState.value.copy(
-                features = _uiState.value.features.copy(trueToneDisplay = enable),
-                feedbackMessage = result.message
-            )
-        }
-    }
+    fun toggleXswapd(enable: Boolean) = apply { TuningRepository.setXswapdEnabled(enable) }
 
-    fun setVibratorStrength(percent: Int) {
-        viewModelScope.launch {
-            val result = TuningRepository.setVibratorStrength(percent)
-            _uiState.value = _uiState.value.copy(
-                features = _uiState.value.features.copy(vibratorStrengthPercent = percent),
-                feedbackMessage = result.message
-            )
-        }
-    }
+    fun triggerXswapdReclaim() = apply { TuningRepository.triggerXswapdReclaim() }
 
-    fun toggleDynamicFsync(enable: Boolean) {
-        viewModelScope.launch {
-            val result = TuningRepository.setDynamicFsync(enable)
-            _uiState.value = _uiState.value.copy(
-                features = _uiState.value.features.copy(dynamicFsync = enable),
-                feedbackMessage = result.message
-            )
-        }
-    }
+    fun toggleDt2w(enable: Boolean) = apply { TuningRepository.setDoubleTapToWake(enable) }
 
-    fun setReadAhead(kb: Int) {
-        viewModelScope.launch {
-            val result = TuningRepository.setReadAheadKb(kb)
-            _uiState.value = _uiState.value.copy(
-                features = _uiState.value.features.copy(readAheadKb = kb),
-                feedbackMessage = result.message
-            )
-        }
-    }
+    fun toggleTrueTone(enable: Boolean) = apply { TuningRepository.setTrueTone(enable) }
+
+    fun setVibratorStrength(percent: Int) = apply { TuningRepository.setVibratorStrength(percent) }
+
+    fun toggleDynamicFsync(enable: Boolean) = apply { TuningRepository.setDynamicFsync(enable) }
+
+    fun setReadAhead(kb: Int) = apply { TuningRepository.setReadAheadKb(kb) }
+
+    fun isSupported(feature: TuningFeature): Boolean = _uiState.value.features.isSupported(feature)
 
     fun clearFeedback() {
         _uiState.value = _uiState.value.copy(feedbackMessage = null)
