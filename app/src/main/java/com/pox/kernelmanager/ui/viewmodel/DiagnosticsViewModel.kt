@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pox.kernelmanager.data.repo.DownloadsStore
 import com.pox.kernelmanager.data.root.KernelNodes
-import com.pox.kernelmanager.data.root.NodeStatus
+import com.pox.kernelmanager.data.root.ShellUtils.NodeStatus
 import com.pox.kernelmanager.data.root.ShellUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
