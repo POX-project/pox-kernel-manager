@@ -229,7 +229,7 @@ object ShellUtils {
      * never obtained. This executes the daemon instead.
      */
     private suspend fun fetchVersion(provider: RootProvider, probes: Map<String, String>): String {
-        if (!"uid" in probes) return ""
+        if ("uid" !in probes) return ""
         val candidates = when (provider) {
             RootProvider.BAKASU, RootProvider.KERNELSU_NEXT,
             RootProvider.SUKISU_ULTRA, RootProvider.KERNELSU ->
