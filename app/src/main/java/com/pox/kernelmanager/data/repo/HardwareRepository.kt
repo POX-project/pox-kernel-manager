@@ -114,10 +114,22 @@ object HardwareRepository {
         }
         val ramUsed = if (ramAvailable > 0) ramTotal - ramAvailable else ramTotal - ramFree
 
+        // Stock zram exposes one mm_stat line, not separate mem_used_total /
+        // orig_data_size files (those are a vendor ZRAM+ extension absent from
+        // this kernel). Fields are space separated, in bytes:
+        // orig_data_size compr_data_size mem_used_total mem_limit
+        // max_used_pages same_pages pages_compacted huge_pages
+        val mmStat = ShellUtils.fastRead("/sys/block/zram0/mm_stat")
+            ?.trim()
+            ?.split(Regex("\\s+"))
+            .orEmpty()
+
         val zramDisksize = (ShellUtils.fastRead("/sys/block/zram0/disksize")?.toLongOrNull() ?: 0L) / (1024 * 1024)
-        val zramUsed = (ShellUtils.fastRead("/sys/block/zram0/mem_used_total")?.toLongOrNull() ?: 0L) / (1024 * 1024)
-        val zramOrig = (ShellUtils.fastRead("/sys/block/zram0/orig_data_size")?.toLongOrNull() ?: 0L) / (1024 * 1024)
+        val zramOrig = mmStat.getOrNull(0)?.toLongOrNull() ?: 0L
+        val zramUsed = mmStat.getOrNull(2)?.toLongOrNull() ?: 0L
         val zramRatio = if (zramUsed > 0) zramOrig.toFloat() / zramUsed.toFloat() else 1.0f
+        val zramOrigMb = zramOrig / (1024 * 1024)
+        val zramUsedMb = zramUsed / (1024 * 1024)
 
         // 4. Battery & Power Telemetry (Accurate Android BatteryManager + Intent + sysfs)
         var batCapacity = 78
@@ -184,7 +196,14 @@ object HardwareRepository {
         } catch (_: Exception) { }
 
         val wattage = (batVoltageMv * abs(batCurrentMa)) / 1000000f
-        val bypassMode = ShellUtils.fastRead("/sys/kernel/battery_protection/bypass_mode") == "1"
+        // There is no battery_protection node in pox-begonia-kernel, so this can only
+        // reflect the saved preference. The tuning screen reports it as unsupported.
+        val bypassMode = false
+
+        // begonia builds CONFIG_DEFAULT_IOSCHED="noop" with CONFIG_MQ_IOSCHED_DEADLINE
+        // and CONFIG_MQ_IOSCHED_KYBER, so "mq-deadline" is not selectable here.
+        // The queue name differs per storage layout, so discover it rather than
+        // assuming sda.
 
         HardwareStats(
             cpuCores = cores,
@@ -195,7 +214,7 @@ object HardwareRepository {
             ramUsedMb = ramUsed / 1024,
             ramFreeMb = ramAvailable / 1024,
             zramTotalMb = zramDisksize,
-            zramUsedMb = zramUsed,
+            zramUsedMb = zramUsedMb,
             zramCompRatio = zramRatio,
             batteryLevel = batCapacity,
             batteryVoltageMv = batVoltageMv,

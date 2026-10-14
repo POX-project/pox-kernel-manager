@@ -308,56 +308,103 @@ object ShellUtils {
         null
     }
 
-    /**
-     * Write a value and confirm it landed.
-     *
-     * Every tuning setter used to discard this return value and report success
-     * regardless, so a missing `/proc/perfmgr` node looked identical to a working
-     * write. The read-back below is what makes the reported result trustworthy.
-     */
-    suspend fun fastWrite(path: String, value: String): Boolean = withContext(Dispatchers.IO) {
-        val quotedPath = shellQuote(path)
-        val expected = value.trim()
+/**
+ * Write a value and confirm it landed.
+ *
+ * Every tuning setter used to discard this return value and report success
+ * regardless, so a missing `/proc/perfmgr` node looked identical to a working
+ * write. The read-back below is what makes the reported result trustworthy.
+ *
+ * [verify] receives the node contents after the write. The default is correct for
+ * sysfs files, where writing and reading back the same value round-trips. Nodes
+ * with a command interface (MediaTek's `usrtch`) echo back a status dump instead,
+ * so they must supply their own predicate.
+ */
+suspend fun fastWrite(
+    path: String,
+    value: String,
+    verify: ((String) -> Boolean)? = null
+): Boolean = withContext(Dispatchers.IO) {
+    val quotedPath = shellQuote(path)
+    val expected = value.trim()
 
-        try {
-            val file = File(path)
-            if (file.exists() && file.canWrite()) {
-                file.writeText(value)
-                if (file.readText().trim() == expected) return@withContext true
-            }
-        } catch (_: Exception) { }
-
-        if (!isRootAvailable()) return@withContext false
-
-        try {
-            val written = Shell.cmd("printf '%s\\n' ${shellQuote(value)} > $quotedPath").exec()
-            if (!written.isSuccess) return@withContext false
-            val readBack = Shell.cmd("cat $quotedPath 2>/dev/null").exec()
-            readBack.out.firstOrNull()?.trim() == expected
-        } catch (_: Exception) {
-            false
+    try {
+        val file = File(path)
+        if (file.exists() && file.canWrite()) {
+            file.writeText(value)
+            if (verify == null && file.readText().trim() == expected) return@withContext true
         }
+    } catch (_: Exception) { }
+
+    if (!isRootAvailable()) return@withContext false
+
+    try {
+        val written = Shell.cmd("printf '%s\\n' ${shellQuote(value)} > $quotedPath").exec()
+        if (!written.isSuccess) return@withContext false
+
+        val readBack = Shell.cmd("cat $quotedPath 2>/dev/null").exec()
+        val content = readBack.out.joinToString("\n")
+        if (verify != null) return@withContext verify(content)
+        readBack.out.firstOrNull()?.trim() == expected
+    } catch (_: Exception) {
+        false
     }
+}
+
+/**
+ * Read a node through the root shell, bypassing the app mount namespace.
+ *
+ * `/proc/perfmgr` and `/data/adb` are frequently invisible to plain `File` reads
+ * on a device with a root framework installed, so procfs and the kernel-supplied
+ * tuning nodes must always be read through the shell.
+ */
+suspend fun readNode(path: String): String? = withContext(Dispatchers.IO) {
+    if (!isRootAvailable()) return@withContext null
+    try {
+        val res = Shell.cmd("cat ${shellQuote(path)} 2>/dev/null").exec()
+        val text = res.out.joinToString("\n").trim()
+        if (text.isEmpty()) null else text
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/** True when the node exists and is writable by the current root shell. */
+suspend fun nodeExists(path: String): Boolean = withContext(Dispatchers.IO) {
+    if (!isRootAvailable()) return@withContext false
+    try {
+        Shell.cmd("test -w ${shellQuote(path)}").exec().isSuccess
+    } catch (_: Exception) {
+        false
+    }
+}
 
     /** Single-quote a value for safe interpolation into a shell command. */
     private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
 
-    suspend fun detectNoMount(): Boolean = withContext(Dispatchers.IO) {
-        try {
-            if (File("/dev/nomount").exists()) return@withContext true
-        } catch (_: Exception) { }
+    /**
+ * Whether the kernel is unmounting modules on demand.
+ *
+ * `/dev/nomount` never existed. KernelSU and its forks implement this as feature
+ * id 1 (`KernelUmount`) inside the kernel's feature-handler interface, queried
+ * through the ksud CLI, which prints `Value: <0|1>` and `Status: enabled|disabled`.
+ */
+suspend fun detectNoMount(): Boolean = withContext(Dispatchers.IO) {
+    if (!isRootAvailable()) return@withContext false
 
-        if (!isRootAvailable()) return@withContext false
-        try {
-            // Grouped explicitly: the old form let the `||` swallow the `grep` test.
-            val check = Shell.cmd(
-                "if [ -e /dev/nomount ]; then echo active; " +
-                    "elif grep -s -q nomount /proc/keys 2>/dev/null; then echo active; fi"
-            ).exec()
-            return@withContext check.out.any { it.contains("active") }
-        } catch (_: Exception) { }
-        false
+    val result = runCatching {
+        Shell.cmd("/data/adb/ksu/bin/ksud feature get kernel_umount 2>/dev/null").exec()
+    }.getOrNull() ?: return@withContext false
+
+    if (!result.isSuccess) return@withContext false
+
+    val text = result.out.joinToString("\n")
+    // "Status: enabled" is authoritative; fall back to the raw value.
+    if (text.contains("enabled", ignoreCase = true) && !text.contains("disabled", ignoreCase = true)) {
+        return@withContext true
     }
+    Regex("(?m)^Value:\\s*(\\d+)").find(text)?.groupValues?.get(1)?.toIntOrNull() == 1
+}
 
     suspend fun detectSELinux(): String = withContext(Dispatchers.IO) {
         try {
