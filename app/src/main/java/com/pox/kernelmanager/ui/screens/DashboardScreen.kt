@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.pox.kernelmanager.BuildConfig
 import com.pox.kernelmanager.ui.components.PoxTopAppBar
 import com.pox.kernelmanager.ui.components.SectionHeader
 import com.pox.kernelmanager.ui.components.StatCard
@@ -92,8 +93,10 @@ fun DashboardScreen(
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.primary
                         ) {
+                            // Read from BuildConfig rather than a literal, which had drifted from
+                            // app/build.gradle.kts and reported the wrong version.
                             Text(
-                                text = "1.0.0-Beta",
+                                text = BuildConfig.VERSION_NAME,
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimary,
