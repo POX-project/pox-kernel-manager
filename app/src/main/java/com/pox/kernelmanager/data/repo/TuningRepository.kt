@@ -69,7 +69,7 @@ object TuningRepository {
     private fun unsupported(feature: TuningFeature): TuningApplyResult =
         TuningApplyResult(false, "${feature.label} has no interface in pox-begonia-kernel")
 
-    private fun isSupported(feature: TuningFeature): Boolean =
+    private suspend fun isSupported(feature: TuningFeature): Boolean =
         KernelNodes.support()[feature] == true
 
     suspend fun getTuningFeatures(): TuningFeatures = withContext(Dispatchers.IO) {
