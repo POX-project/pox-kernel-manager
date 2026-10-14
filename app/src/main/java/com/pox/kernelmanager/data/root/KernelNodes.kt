@@ -219,22 +219,6 @@ object KernelNodes {
             }
         }
 
-        return mapOf(
-            // Gaming mode is emulated from perfmgr: boost + FPSGO touch boost.
-            TuningFeature.GAMING_MODE to (perfBoost && touchBoost),
-            TuningFeature.TOUCH_BOOST to touchBoost,
-            TuningFeature.FPS_CAP to fpsCap,
-            TuningFeature.DYNAMIC_FSYNC to dynFsync,
-            TuningFeature.XSWAPD to xswapd,
-
-            // No node exists for these in pox-begonia-kernel.
-            TuningFeature.BYPASS_CHARGING to false,
-            TuningFeature.CHARGE_LIMIT to false,
-            TuningFeature.THERMAL_GUARD to false,
-            TuningFeature.DT2W to false,
-            TuningFeature.TRUE_TONE to false,
-            TuningFeature.VIBRATOR_STRENGTH to false,
-
             return mapOf(
                 // Gaming mode is emulated from perfmgr: boost + FPSGO touch boost.
                 TuningFeature.GAMING_MODE to (perfBoost && touchBoost),
