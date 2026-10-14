@@ -248,8 +248,9 @@ object ShellUtils {
 
     /**
      * App-side su probe. Kept for callers that need a cheap pre-check, but it is
-     * only a hint: `File.exists()` runs in the app mount namespace, where
-     * `/data/adb/*` is often invisible and magic-mounted `su` may have no backing file.
+     * only a hint: `File.exists()` runs in the app mount namespace, where the
+     * `/data/adb` tree is often invisible and a magic-mounted `su` may have no
+     * backing file on disk at all.
      */
     fun hasSuBinary(): Boolean = arrayOf(
         "/system/bin/su", "/system/xbin/su", "/sbin/su", "/vendor/bin/su",
