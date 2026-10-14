@@ -157,17 +157,31 @@ object KernelUpdateRepository {
 
     suspend fun flashViaOpenRecoveryScript(zipFile: File): Flow<String> = flow {
         emit("Checking root permissions...")
-        if (!ShellUtils.isRootAvailable()) {
+        val env = ShellUtils.environment()
+        if (!env.granted) {
             throw Exception("Root access required to configure recovery flash.")
         }
 
-        emit("Backing up current boot partition to /sdcard/boot_backup.img...")
-        ShellUtils.runCommand("dd if=/dev/block/by-name/boot of=/sdcard/boot_backup.img 2>/dev/null")
+        // The old path wrote a raw boot image through the /sdcard FUSE mount, which
+        // silently truncates or corrupts it. Stage the backup on real storage instead.
+        val backupPath = "/data/local/tmp/pox_boot_backup.img"
+        emit("Backing up current boot partition to $backupPath...")
+        val backup = ShellUtils.runCommand(
+            "dd if=/dev/block/by-name/boot of=$backupPath bs=4M 2>/dev/null && sync"
+        )
+        if (!backup.isSuccess) {
+            throw Exception("Boot backup failed - the partition was not written.")
+        }
 
         emit("Configuring OpenRecoveryScript for TWRP / OrangeFox...")
         ShellUtils.runCommand("mkdir -p /cache/recovery")
-        ShellUtils.runCommand("echo \"install ${zipFile.absolutePath}\" > /cache/recovery/openrecoveryscript")
-        ShellUtils.runCommand("echo \"wipe cache\" >> /cache/recovery/openrecoveryscript")
+        val script = "/cache/recovery/openrecoveryscript"
+        val stage = ShellUtils.runCommand(
+            "printf '%s\\n' 'install ${zipFile.absolutePath}' 'wipe cache' > $script"
+        )
+        if (!stage.isSuccess) {
+            throw Exception("Could not stage $script - recovery directory may be unavailable.")
+        }
 
         emit("Package staged successfully. Ready to reboot.")
     }.flowOn(Dispatchers.IO)

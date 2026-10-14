@@ -36,7 +36,9 @@ object HardwareRepository {
         val commitRegex = Regex("([a-f0-9]{7,12})")
         val commit = commitRegex.find(utsRelease)?.value ?: ""
 
-        val rootProvider = ShellUtils.detectRootProvider()
+        // One probe for the whole root state: provider, version and grant status come
+// from the same snapshot instead of three independent round-trips.
+        val rootEnv = ShellUtils.environment()
         val selinux = ShellUtils.detectSELinux()
         val noMount = ShellUtils.detectNoMount()
 
@@ -49,7 +51,9 @@ object HardwareRepository {
             kernelEdition = edition,
             commitHash = commit,
             isPoxKernel = isPox,
-            rootProvider = rootProvider,
+            rootProvider = rootEnv.provider,
+            rootProviderVersion = rootEnv.version,
+            rootGranted = rootEnv.granted,
             selinuxStatus = selinux,
             noMountActive = noMount
         )
