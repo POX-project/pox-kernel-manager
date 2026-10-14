@@ -122,11 +122,12 @@ jobs:
           fi
 
       - name: Assemble release
-        run: ./gradlew --no-daemon :app:assembleRelease --stacktrace \
-          -Pandroid.injected.signing.store.file="${{ steps.signing.outputs.storeFile }}" \
-          -Pandroid.injected.signing.store.password="${{ steps.signing.outputs.storePassword }}" \
-          -Pandroid.injected.signing.key.alias="${{ steps.signing.outputs.keyAlias }}" \
-          -Pandroid.injected.signing.key.password="${{ steps.signing.outputs.keyPassword }}"
+        run: |
+          ./gradlew --no-daemon :app:assembleRelease --stacktrace \
+            -Pandroid.injected.signing.store.file="${{ steps.signing.outputs.storeFile }}" \
+            -Pandroid.injected.signing.store.password="${{ steps.signing.outputs.storePassword }}" \
+            -Pandroid.injected.signing.key.alias="${{ steps.signing.outputs.keyAlias }}" \
+            -Pandroid.injected.signing.key.password="${{ steps.signing.outputs.keyPassword }}"
 
       - name: Publish release
         env:
