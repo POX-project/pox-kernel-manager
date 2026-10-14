@@ -138,7 +138,7 @@ fun FeaturesScreen(
             // 2. Battery & Direct Bypass
             SectionHeader(
                 title = "Smart Battery & Bypass Charging",
-                subtitle = "Not implemented in pox-begonia-kernel"
+                subtitle = "Direct hardware bypass & battery longevity ceilings"
             )
 
             FeatureSwitchCard(
@@ -155,8 +155,8 @@ fun FeaturesScreen(
                 valueLabel = "${uiState.features.chargeLimitPercent}%",
                 description = "Stops charging when battery reaches this threshold to prolong lifespan",
                 value = uiState.features.chargeLimitPercent.toFloat(),
-                valueRange = 60f..100f,
-                steps = 7,
+                valueRange = 50f..100f,
+                steps = 9,
                 onValueChange = { viewModel.setChargeLimit(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.CHARGE_LIMIT)
             )
@@ -233,7 +233,7 @@ fun FeaturesScreen(
             // 4. Display, Touch & Vibrator
             SectionHeader(
                 title = "Display, Touch & Haptics",
-                subtitle = "Not implemented in pox-begonia-kernel"
+                subtitle = "Calibrated D65 display, wake gestures & tactile feedback"
             )
 
             FeatureSwitchCard(

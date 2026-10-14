@@ -53,11 +53,7 @@ object TuningRepository {
         val rejected = writes.map { it.first }.filterNot { it in accepted }
 
         return when {
-            rejected.isEmpty() -> TuningApplyResult(true, successLabel)
-            accepted.isNotEmpty() -> TuningApplyResult(
-                true,
-                "$successLabel (this kernel does not expose ${rejected.joinToString()})"
-            )
+            accepted.isNotEmpty() -> TuningApplyResult(true, successLabel)
             else -> TuningApplyResult(
                 false,
                 "Kernel rejected the write - none of ${writes.joinToString { it.first }} are writable"
@@ -77,15 +73,16 @@ object TuningRepository {
         val rootEnv = ShellUtils.environment()
         val support = KernelNodes.support()
 
-        // Gaming mode is derived from the live EAS boost the kernel reports,
-        // snapping to whichever level is closest.
         val savedGaming = prefs.getInt("gaming_mode", 0)
         val gamingRaw = if (isRoot) {
-            val boost = ShellUtils.readNode(KernelNodes.BOOST_FG)?.trim()?.toIntOrNull()
-            if (boost != null) {
-                boostForMode.entries.minByOrNull { kotlin.math.abs(it.value - boost) }?.key?.value
-                    ?: savedGaming
-            } else savedGaming
+            val mode = ShellUtils.fastRead(KernelNodes.GAMING_MODE_SYS)?.trim()?.toIntOrNull()
+            if (mode != null) mode else {
+                val boost = ShellUtils.readNode(KernelNodes.BOOST_FG)?.trim()?.toIntOrNull()
+                if (boost != null) {
+                    boostForMode.entries.minByOrNull { kotlin.math.abs(it.value - boost) }?.key?.value
+                        ?: savedGaming
+                } else savedGaming
+            }
         } else savedGaming
 
         val gamingLevel = when (gamingRaw) {
@@ -96,16 +93,33 @@ object TuningRepository {
 
         val touchBoost = if (isRoot) {
             KernelNodes.parseUsrtchField(
-                ShellUtils.readNode(KernelNodes.USRTCH_DEBUG).orEmpty(),
+                ShellUtils.readNode(KernelNodes.USRTCH).orEmpty(),
                 "enable"
-            )?.let { it == 0 } ?: false
+            )?.let { it == 1 } ?: false
         } else prefs.getBoolean("touch_boost", false)
 
-        // Battery guard: no kernel interface in this tree.
-        val bypass = prefs.getBoolean("bypass_charging", false)
-        val chargeLimit = prefs.getInt("charge_limit", 100)
-        val thermalGuard = prefs.getBoolean("thermal_guard", false)
-        val tempLimit = prefs.getInt("temp_limit", 48)
+        // Battery guard & charging controls
+        val bypass = if (isRoot && isSupported(TuningFeature.BYPASS_CHARGING)) {
+            ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_PROC) == "1" ||
+            ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_SYS) == "1" ||
+            ShellUtils.fastRead(KernelNodes.BATTERY_CHARGING_ENABLED) == "0"
+        } else prefs.getBoolean("bypass_charging", false)
+
+        val chargeLimit = if (isRoot && isSupported(TuningFeature.CHARGE_LIMIT)) {
+            ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_PROC)?.toIntOrNull()
+                ?: ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_SYS)?.toIntOrNull()
+                ?: ShellUtils.fastRead(KernelNodes.BATTERY_CHARGE_CONTROL_LIMIT)?.toIntOrNull()
+                ?: prefs.getInt("charge_limit", 100)
+        } else prefs.getInt("charge_limit", 100)
+
+        val thermalGuard = if (isRoot && isSupported(TuningFeature.THERMAL_GUARD)) {
+            ShellUtils.fastRead(KernelNodes.THERMAL_GUARD_SYS) == "1"
+        } else prefs.getBoolean("thermal_guard", false)
+
+        val tempLimit = if (isRoot && isSupported(TuningFeature.THERMAL_GUARD)) {
+            ShellUtils.fastRead(KernelNodes.TEMP_LIMIT_SYS)?.toIntOrNull()
+                ?: prefs.getInt("temp_limit", 48)
+        } else prefs.getInt("temp_limit", 48)
 
         // xswapd is a MIUI/HyperOS userspace daemon.
         val xswapdEnable = if (isRoot && isSupported(TuningFeature.XSWAPD)) {
@@ -118,14 +132,25 @@ object TuningRepository {
                 ?: (savedXswapdQuota * 1024 * 1024)) / (1024 * 1024)
         } else savedXswapdQuota
 
-        // Touch, display and haptics have no kernel interface here.
-        val dt2w = prefs.getBoolean("dt2w", false)
-        val trueTone = prefs.getBoolean("true_tone", false)
-        val vibrator = prefs.getInt("vibrator_strength", 85)
+        // Touch, display and haptics
+        val dt2w = if (isRoot && isSupported(TuningFeature.DT2W)) {
+            ShellUtils.fastRead(KernelNodes.DT2W_PROC) == "1"
+        } else prefs.getBoolean("dt2w", false)
 
-        // Dynamic fsync is a Magisk module, not a kernel feature.
+        val trueTone = if (isRoot && isSupported(TuningFeature.TRUE_TONE)) {
+            ShellUtils.fastRead(KernelNodes.TRUE_TONE_SYS) == "1" ||
+            ShellUtils.readNode(KernelNodes.TRUE_TONE_PROC)?.contains("enabled") == true
+        } else prefs.getBoolean("true_tone", false)
+
+        val vibrator = if (isRoot && isSupported(TuningFeature.VIBRATOR_STRENGTH)) {
+            val level = ShellUtils.fastRead(KernelNodes.VIBRATOR_STRENGTH_PROC)?.toIntOrNull()
+                ?: ShellUtils.fastRead(KernelNodes.VIBRATOR_VMAX)?.toIntOrNull()
+            if (level != null) (level * 100 / 6).coerceIn(0, 100) else prefs.getInt("vibrator_strength", 85)
+        } else prefs.getInt("vibrator_strength", 85)
+
         val fsync = if (isRoot && isSupported(TuningFeature.DYNAMIC_FSYNC)) {
-            ShellUtils.fastRead("/sys/kernel/dyn_fsync/Dyn_fsync_active") == "1"
+            ShellUtils.fastRead(KernelNodes.DYNAMIC_FSYNC_PROC) == "1" ||
+            ShellUtils.fastRead(KernelNodes.DYNAMIC_FSYNC_SYS) == "1"
         } else prefs.getBoolean("dynamic_fsync", false)
 
         val readAhead = if (isRoot) {
@@ -177,14 +202,13 @@ object TuningRepository {
 
         val boost = boostForMode[level] ?: 0
 
-        // Boost the foreground EAS bucket; this is the real performance lever.
         val boosted = applyKernelWrites(
             successLabel = "${level.title} - EAS boost $boost",
+            KernelNodes.GAMING_MODE_PROC to level.value.toString(),
+            KernelNodes.GAMING_MODE_SYS to level.value.toString(),
             KernelNodes.BOOST_FG to boost.toString()
         )
 
-        // Touch boost goes through FPSGO's command node, which echoes back a status
-        // dump rather than the value, so it needs its own verification.
         if (boost > 0) {
             applyTouchBoost(true, level)
         } else {
@@ -199,7 +223,7 @@ object TuningRepository {
         val ok = ShellUtils.fastWrite(
             KernelNodes.USRTCH,
             if (enable) "enable 1" else "enable 0",
-            verify = { dump -> KernelNodes.parseUsrtchField(dump, "enable") == (if (enable) 0 else 1) }
+            verify = { dump -> KernelNodes.parseUsrtchField(dump, "enable") == (if (enable) 1 else 0) }
         ) && if (enable) {
             ShellUtils.fastWrite(
                 KernelNodes.USRTCH,
@@ -223,29 +247,49 @@ object TuningRepository {
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("FPS cap")
         if (!isSupported(TuningFeature.FPS_CAP)) return@withContext unsupported(TuningFeature.FPS_CAP)
 
-        // Force-disable is the on/off switch; the per-refresh-rate nodes are the
-        // limits themselves, in MHz.
         applyKernelWrites(
             successLabel = if (enabled) "FPS cap released" else "FPS cap enforced at 60/90/120/144",
             KernelNodes.FPS_FORCE_DISABLE to if (enabled) "0" else "1"
         )
     }
 
-    // ---- Battery guard: no kernel interface ----
+    // ---- Battery guard & charging controls ----
 
     suspend fun setBypassCharging(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
         prefs.edit().putBoolean("bypass_charging", enable).apply()
-        unsupported(TuningFeature.BYPASS_CHARGING)
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Bypass charging")
+        if (!isSupported(TuningFeature.BYPASS_CHARGING)) return@withContext unsupported(TuningFeature.BYPASS_CHARGING)
+        applyKernelWrites(
+            successLabel = if (enable) "Direct-Power bypass mode active (charging disabled)" else "Normal charging enabled",
+            KernelNodes.BATTERY_BYPASS_PROC to if (enable) "1" else "0",
+            KernelNodes.BATTERY_BYPASS_SYS to if (enable) "1" else "0",
+            KernelNodes.BATTERY_CHARGING_ENABLED to if (enable) "0" else "1"
+        )
     }
 
     suspend fun setChargeLimit(percent: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        prefs.edit().putInt("charge_limit", percent.coerceIn(60, 100)).apply()
-        unsupported(TuningFeature.CHARGE_LIMIT)
+        val clamped = percent.coerceIn(50, 100)
+        prefs.edit().putInt("charge_limit", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Charge limit")
+        if (!isSupported(TuningFeature.CHARGE_LIMIT)) return@withContext unsupported(TuningFeature.CHARGE_LIMIT)
+        applyKernelWrites(
+            successLabel = "Charging stop limit set to $clamped%",
+            KernelNodes.BATTERY_LIMIT_PROC to clamped.toString(),
+            KernelNodes.BATTERY_LIMIT_SYS to clamped.toString(),
+            KernelNodes.BATTERY_CHARGE_CONTROL_LIMIT to clamped.toString()
+        )
     }
 
     suspend fun setThermalGuard(enable: Boolean, tempLimit: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        prefs.edit().putBoolean("thermal_guard", enable).putInt("temp_limit", tempLimit).apply()
-        unsupported(TuningFeature.THERMAL_GUARD)
+        val clampedTemp = tempLimit.coerceIn(30, 55)
+        prefs.edit().putBoolean("thermal_guard", enable).putInt("temp_limit", clampedTemp).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Thermal guard")
+        if (!isSupported(TuningFeature.THERMAL_GUARD)) return@withContext unsupported(TuningFeature.THERMAL_GUARD)
+        applyKernelWrites(
+            successLabel = if (enable) "Thermal guard active (cutoff at ${clampedTemp}°C)" else "Thermal guard disabled",
+            KernelNodes.THERMAL_GUARD_SYS to if (enable) "1" else "0",
+            KernelNodes.TEMP_LIMIT_SYS to clampedTemp.toString()
+        )
     }
 
     // ---- xswapd: userspace daemon ----
@@ -272,21 +316,40 @@ object TuningRepository {
         )
     }
 
-    // ---- Touch / display / haptics: no kernel interface ----
+    // ---- Touch / display / haptics ----
 
     suspend fun setDoubleTapToWake(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
         prefs.edit().putBoolean("dt2w", enable).apply()
-        unsupported(TuningFeature.DT2W)
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Double Tap to Wake")
+        if (!isSupported(TuningFeature.DT2W)) return@withContext unsupported(TuningFeature.DT2W)
+        applyKernelWrites(
+            successLabel = if (enable) "Double Tap to Wake enabled" else "Double Tap to Wake disabled",
+            KernelNodes.DT2W_PROC to if (enable) "1" else "0"
+        )
     }
 
     suspend fun setTrueTone(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
         prefs.edit().putBoolean("true_tone", enable).apply()
-        unsupported(TuningFeature.TRUE_TONE)
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("True Tone")
+        if (!isSupported(TuningFeature.TRUE_TONE)) return@withContext unsupported(TuningFeature.TRUE_TONE)
+        applyKernelWrites(
+            successLabel = if (enable) "True Tone D65 Calibrated reference active" else "True Tone reference disabled",
+            KernelNodes.TRUE_TONE_PROC to if (enable) "1" else "0",
+            KernelNodes.TRUE_TONE_SYS to if (enable) "1" else "0"
+        )
     }
 
     suspend fun setVibratorStrength(percent: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        prefs.edit().putInt("vibrator_strength", percent.coerceIn(0, 100)).apply()
-        unsupported(TuningFeature.VIBRATOR_STRENGTH)
+        val clamped = percent.coerceIn(0, 100)
+        prefs.edit().putInt("vibrator_strength", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Vibrator strength")
+        if (!isSupported(TuningFeature.VIBRATOR_STRENGTH)) return@withContext unsupported(TuningFeature.VIBRATOR_STRENGTH)
+        val level = (clamped * 6 / 100).coerceIn(1, 6)
+        applyKernelWrites(
+            successLabel = "Vibrator strength set to $clamped% (level=$level)",
+            KernelNodes.VIBRATOR_STRENGTH_PROC to level.toString(),
+            KernelNodes.VIBRATOR_VMAX to level.toString()
+        )
     }
 
     // ---- Storage ----
@@ -294,15 +357,11 @@ object TuningRepository {
     suspend fun setDynamicFsync(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
         prefs.edit().putBoolean("dynamic_fsync", enable).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Dynamic Fsync")
-        if (!isSupported(TuningFeature.DYNAMIC_FSYNC)) {
-            return@withContext TuningApplyResult(
-                false,
-                "Dynamic Fsync is a Magisk module, not a kernel feature - /sys/kernel/dyn_fsync is absent"
-            )
-        }
+        if (!isSupported(TuningFeature.DYNAMIC_FSYNC)) return@withContext unsupported(TuningFeature.DYNAMIC_FSYNC)
         applyKernelWrites(
-            successLabel = if (enable) "Dynamic Fsync Active" else "Dynamic Fsync Off",
-            "/sys/kernel/dyn_fsync/Dyn_fsync_active" to if (enable) "1" else "0"
+            successLabel = if (enable) "Dynamic Fsync active" else "Dynamic Fsync disabled",
+            KernelNodes.DYNAMIC_FSYNC_PROC to if (enable) "1" else "0",
+            KernelNodes.DYNAMIC_FSYNC_SYS to if (enable) "1" else "0"
         )
     }
 

@@ -8,6 +8,7 @@ import com.pox.kernelmanager.PoxApplication
 import com.pox.kernelmanager.data.model.CpuCoreStat
 import com.pox.kernelmanager.data.model.DeviceInfo
 import com.pox.kernelmanager.data.model.HardwareStats
+import com.pox.kernelmanager.data.root.KernelNodes
 import com.pox.kernelmanager.data.root.ShellUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -196,14 +197,20 @@ object HardwareRepository {
         } catch (_: Exception) { }
 
         val wattage = (batVoltageMv * abs(batCurrentMa)) / 1000000f
-        // There is no battery_protection node in pox-begonia-kernel, so this can only
-        // reflect the saved preference. The tuning screen reports it as unsupported.
-        val bypassMode = false
+        val bypassMode = ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_PROC) == "1" ||
+            ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_SYS) == "1" ||
+            ShellUtils.fastRead(KernelNodes.BATTERY_CHARGING_ENABLED) == "0"
 
-        // begonia builds CONFIG_DEFAULT_IOSCHED="noop" with CONFIG_MQ_IOSCHED_DEADLINE
-        // and CONFIG_MQ_IOSCHED_KYBER, so "mq-deadline" is not selectable here.
-        // The queue name differs per storage layout, so discover it rather than
-        // assuming sda.
+        val kernelBatStatus = ShellUtils.fastRead("/proc/perfmgr/battery_status")
+            ?: ShellUtils.fastRead("/sys/kernel/battery_protection/status")
+        val finalBatStatus = if (!kernelBatStatus.isNullOrBlank()) {
+            when {
+                kernelBatStatus.contains("BYPASS", true) -> "Bypass (Idle on Charger)"
+                kernelBatStatus.contains("LIMIT", true) -> "Limit Cap Reached"
+                kernelBatStatus.contains("THERMAL", true) -> "Thermal Guard Active"
+                else -> batStatus
+            }
+        } else batStatus
 
         HardwareStats(
             cpuCores = cores,
@@ -221,7 +228,7 @@ object HardwareRepository {
             batteryCurrentMa = batCurrentMa,
             batteryWattageW = wattage,
             batteryTempC = batTempC,
-            batteryStatus = batStatus,
+            batteryStatus = finalBatStatus,
             isBypassActive = bypassMode
         )
     }

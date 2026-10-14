@@ -11,17 +11,16 @@ enum class TuningFeature(val label: String, val unsupportedReason: String) {
     TOUCH_BOOST("Touch boost", "Grant root - /proc/perfmgr/tchbst/user/usrtch is not writable"),
     FPS_CAP("FPS cap", "Grant root - /proc/perfmgr/syslimiter is not writable"),
 
-    // No such node anywhere in pox-begonia-kernel.
-    BYPASS_CHARGING("Bypass charging", "pox-begonia-kernel exposes no charging-control interface"),
-    CHARGE_LIMIT("Charge limit", "pox-begonia-kernel exposes no charging-control interface"),
-    THERMAL_GUARD("Thermal guard", "pox-begonia-kernel exposes no charging-control interface"),
-    DT2W("Double tap to wake", "Handled by the touch HAL, not by a writable kernel node"),
-    TRUE_TONE("True Tone", "Display calibration, not a writable kernel node"),
-    VIBRATOR_STRENGTH("Vibrator strength", "Handled by the vibrator HAL, not a writable kernel node"),
+    BYPASS_CHARGING("Bypass charging", "Grant root - /proc/perfmgr/battery_bypass is not writable"),
+    CHARGE_LIMIT("Charge limit", "Grant root - /proc/perfmgr/battery_limit is not writable"),
+    THERMAL_GUARD("Thermal guard", "Grant root - /sys/kernel/battery_protection/thermal_guard is not writable"),
+    DT2W("Double tap to wake", "Grant root - /proc/perfmgr/dt2w is not writable"),
+    TRUE_TONE("True Tone", "Grant root - /proc/perfmgr/true_tone is not writable"),
+    VIBRATOR_STRENGTH("Vibrator strength", "Grant root - /proc/perfmgr/vibrator_strength is not writable"),
 
     // Present only on some ROMs or with a module installed.
     XSWAPD("xswapd", "Needs /dev/memcg - MIUI/HyperOS ROMs only"),
-    DYNAMIC_FSYNC("Dynamic fsync", "Install the dyn_fsync Magisk module to create this node"),
+    DYNAMIC_FSYNC("Dynamic fsync", "Grant root - /proc/perfmgr/dynamic_fsync is not writable"),
 
     // Standard Linux interfaces, available on every root solution.
     READ_AHEAD("Read-ahead", "No writable block queue found under /sys/block"),
@@ -41,7 +40,7 @@ data class TuningFeatures(
     val gamingMode: GamingModeLevel = GamingModeLevel.BALANCED,
     val touchBoost240Hz: Boolean = false,
 
-    // Smart Battery Guard & Bypass (no node in pox-begonia-kernel)
+    // Smart Battery Guard & Bypass
     val bypassCharging: Boolean = false,
     val chargeLimitPercent: Int = 100,
     val thermalGuardEnabled: Boolean = false,
@@ -51,7 +50,7 @@ data class TuningFeatures(
     val xswapdEnabled: Boolean = false,
     val xswapdQuotaMb: Long = 0,
 
-    // Hardware Touch & Display (no node in pox-begonia-kernel)
+    // Hardware Touch & Display
     val doubleTapToWake: Boolean = false,
     val trueToneDisplay: Boolean = false,
     val vibratorStrengthPercent: Int = 85,
@@ -100,9 +99,8 @@ data class TuningFeatures(
     /** Why a control is disabled, for display next to it. */
     fun reasonFor(feature: TuningFeature): String? = when {
         !rootGranted ->
-            "Pox Kernel Manager has not been granted root. Open Magisk > Superuser, " +
-                "grant this app, then reopen it. If Zygisk is enabled, make sure " +
-                "the app is not on the enforce-denylist."
+            "Pox Kernel Manager has not been granted root. Open your root manager (APatch / KernelSU / Magisk), " +
+                "grant this app, then reopen it."
         feature in unsupported -> feature.unsupportedReason
         else -> null
     }

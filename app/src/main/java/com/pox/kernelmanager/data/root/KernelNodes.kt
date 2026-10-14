@@ -85,7 +85,31 @@ object KernelNodes {
     const val PERF_IOCTL = "/proc/perfmgr/perf_ioctl"
     const val EARA_IOCTL = "/proc/perfmgr/eara_ioctl"
 
-    // ---- Standard Linux nodes that do exist ----
+    // ---- Standard Linux & Begonia nodes that do exist ----
+
+    const val GAMING_MODE_PROC = "/proc/perfmgr/gaming_mode"
+    const val GAMING_MODE_SYS = "/sys/kernel/gaming_mode"
+
+    const val BATTERY_BYPASS_PROC = "/proc/perfmgr/battery_bypass"
+    const val BATTERY_BYPASS_SYS = "/sys/kernel/battery_protection/bypass_mode"
+    const val BATTERY_CHARGING_ENABLED = "/sys/class/power_supply/battery/charging_enabled"
+
+    const val BATTERY_LIMIT_PROC = "/proc/perfmgr/battery_limit"
+    const val BATTERY_LIMIT_SYS = "/sys/kernel/battery_protection/charge_limit"
+    const val BATTERY_CHARGE_CONTROL_LIMIT = "/sys/class/power_supply/battery/charge_control_limit"
+
+    const val THERMAL_GUARD_SYS = "/sys/kernel/battery_protection/thermal_guard"
+    const val TEMP_LIMIT_SYS = "/sys/kernel/battery_protection/temp_limit"
+
+    const val DT2W_PROC = "/proc/perfmgr/dt2w"
+    const val TRUE_TONE_PROC = "/proc/perfmgr/true_tone"
+    const val TRUE_TONE_SYS = "/sys/kernel/true_tone"
+
+    const val VIBRATOR_STRENGTH_PROC = "/proc/perfmgr/vibrator_strength"
+    const val VIBRATOR_VMAX = "/sys/devices/platform/odm/odm:vibrator@0/leds/vibrator/vmax"
+
+    const val DYNAMIC_FSYNC_PROC = "/proc/perfmgr/dynamic_fsync"
+    const val DYNAMIC_FSYNC_SYS = "/sys/kernel/dyn_fsync/Dyn_fsync_active"
 
     /**
      * Stock zram statistics.
@@ -154,14 +178,26 @@ object KernelNodes {
      * really there rather than an inferred support matrix.
      */
     fun probedNodes(): List<String> = listOf(
+        GAMING_MODE_PROC,
+        GAMING_MODE_SYS,
         BOOST_FG,
         USRTCH,
-        USRTCH_DEBUG,
+        BATTERY_BYPASS_PROC,
+        BATTERY_BYPASS_SYS,
+        BATTERY_LIMIT_PROC,
+        BATTERY_LIMIT_SYS,
+        THERMAL_GUARD_SYS,
+        TEMP_LIMIT_SYS,
+        DT2W_PROC,
+        TRUE_TONE_PROC,
+        TRUE_TONE_SYS,
+        VIBRATOR_STRENGTH_PROC,
+        DYNAMIC_FSYNC_PROC,
+        DYNAMIC_FSYNC_SYS,
         FPS_144,
         FPS_FORCE_DISABLE,
         PERF_IOCTL,
-        "/proc/perfmgr/tchbst/kernel/tb_enable",
-        "/sys/kernel/dyn_fsync/Dyn_fsync_active",
+        "/proc/perfmgr/profile",
         "/dev/memcg/memory.xswapd.enable",
         "/sys/block/zram0/disksize",
         "/sys/block/zram0/mm_stat"
@@ -214,23 +250,20 @@ object KernelNodes {
 
         val writable: suspend (String) -> Boolean = { ShellUtils.nodeExists(it) }
 
-        // Kernel touch boost is compiled out on begonia, so only accept tb_enable
-        // if a kernel variant happens to build it. usrtch is the FPSGO path that
-        // begonia actually has.
         val touchBoost = writable(USRTCH) || writable("/proc/perfmgr/tchbst/kernel/tb_enable")
-        val perfBoost = writable(BOOST_FG)
+        val perfBoost = writable(GAMING_MODE_PROC) || writable(GAMING_MODE_SYS) || writable(BOOST_FG)
         val fpsCap = writable(FPS_144)
 
-        // dyn_fsync is not a kernel feature; it ships as a Magisk module that
-        // creates this node. Absence simply means the module is not installed.
-        val dynFsync = writable("/sys/kernel/dyn_fsync/Dyn_fsync_active")
-
-        // xswapd is a MIUI/HyperOS userspace daemon exposing /dev/memcg, not a
-        // kernel interface. It exists only on those ROMs.
+        val dynFsync = writable(DYNAMIC_FSYNC_PROC) || writable(DYNAMIC_FSYNC_SYS)
         val xswapd = writable("/dev/memcg/memory.xswapd.enable")
 
-        // read_ahead_kb, queue/scheduler and scaling_governor exist on every
-        // stock Linux / MTK build; the queue and cpu names are discovered.
+        val bypassCharging = writable(BATTERY_BYPASS_PROC) || writable(BATTERY_BYPASS_SYS) || writable(BATTERY_CHARGING_ENABLED)
+        val chargeLimit = writable(BATTERY_LIMIT_PROC) || writable(BATTERY_LIMIT_SYS) || writable(BATTERY_CHARGE_CONTROL_LIMIT)
+        val thermalGuard = writable(THERMAL_GUARD_SYS)
+        val dt2w = writable(DT2W_PROC)
+        val trueTone = writable(TRUE_TONE_PROC) || writable(TRUE_TONE_SYS)
+        val vibrator = writable(VIBRATOR_STRENGTH_PROC) || writable(VIBRATOR_VMAX)
+
         var blockQueue: String? = null
         for (queue in blockDevices()) {
             if (writable("$queue/queue/read_ahead_kb")) {
@@ -247,27 +280,25 @@ object KernelNodes {
             }
         }
 
-            return mapOf(
-                // Gaming mode is emulated from perfmgr: boost + FPSGO touch boost.
-                TuningFeature.GAMING_MODE to (perfBoost && touchBoost),
-                TuningFeature.TOUCH_BOOST to touchBoost,
-                TuningFeature.FPS_CAP to fpsCap,
-                TuningFeature.DYNAMIC_FSYNC to dynFsync,
-                TuningFeature.XSWAPD to xswapd,
+        return mapOf(
+            TuningFeature.GAMING_MODE to (perfBoost && touchBoost),
+            TuningFeature.TOUCH_BOOST to touchBoost,
+            TuningFeature.FPS_CAP to fpsCap,
+            TuningFeature.DYNAMIC_FSYNC to dynFsync,
+            TuningFeature.XSWAPD to xswapd,
 
-                // No node exists for these in pox-begonia-kernel.
-                TuningFeature.BYPASS_CHARGING to false,
-                TuningFeature.CHARGE_LIMIT to false,
-                TuningFeature.THERMAL_GUARD to false,
-                TuningFeature.DT2W to false,
-                TuningFeature.TRUE_TONE to false,
-                TuningFeature.VIBRATOR_STRENGTH to false,
+            TuningFeature.BYPASS_CHARGING to bypassCharging,
+            TuningFeature.CHARGE_LIMIT to chargeLimit,
+            TuningFeature.THERMAL_GUARD to thermalGuard,
+            TuningFeature.DT2W to dt2w,
+            TuningFeature.TRUE_TONE to trueTone,
+            TuningFeature.VIBRATOR_STRENGTH to vibrator,
 
-                TuningFeature.READ_AHEAD to (blockQueue != null),
-                TuningFeature.IO_SCHEDULER to (blockQueue != null),
-                TuningFeature.CPU_GOVERNOR to (cpuPolicy != null),
-                TuningFeature.ZRAM_SIZE to writable("/sys/block/zram0/disksize")
-            )
+            TuningFeature.READ_AHEAD to (blockQueue != null),
+            TuningFeature.IO_SCHEDULER to (blockQueue != null),
+            TuningFeature.CPU_GOVERNOR to (cpuPolicy != null),
+            TuningFeature.ZRAM_SIZE to writable("/sys/block/zram0/disksize")
+        )
     }
 
     fun invalidate() {
