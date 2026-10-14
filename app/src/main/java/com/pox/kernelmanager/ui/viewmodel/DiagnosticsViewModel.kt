@@ -100,7 +100,7 @@ class DiagnosticsViewModel : ViewModel() {
                     appendLine("\n[MOUNTS]\n$mounts")
                     appendLine("\n[DMESG]\n$dmesg")
                     appendLine("\n[KERNEL NODE REPORT]")
-                    rootEnv.nodeReport.forEach { node ->
+                    ShellUtils.nodeReport(KernelNodes.probedNodes()).forEach { node ->
                         appendLine(
                             "  ${if (node.exists) "PRESENT" else "ABSENT "} " +
                                 "rw=${node.writable} ${node.path} ${node.sample.orEmpty()}"
