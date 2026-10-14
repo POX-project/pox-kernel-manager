@@ -359,7 +359,7 @@ suspend fun fastWrite(
  * tuning nodes must always be read through the shell.
  */
 suspend fun readNode(path: String): String? = withContext(Dispatchers.IO) {
-    if (!isRootAvailable()) return@withContext null
+    if (!rootKnownGranted()) return@withContext null
     try {
         val res = Shell.cmd("cat ${shellQuote(path)} 2>/dev/null").exec()
         val text = res.out.joinToString("\n").trim()
@@ -369,9 +369,55 @@ suspend fun readNode(path: String): String? = withContext(Dispatchers.IO) {
     }
 }
 
-/** True when the node exists and is writable by the current root shell. */
+/** One probed kernel node and what it returned. */
+data class NodeStatus(
+    val path: String,
+    val exists: Boolean,
+    val writable: Boolean,
+    val sample: String?
+)
+
+/**
+ * Every node this build looks for, with what it actually returned.
+ *
+ * Exposed so the diagnostics screen can show the real state of the device
+ * instead of a guess, and so someone reporting "everything is greyed out" can
+ * share the raw output.
+ */
+suspend fun nodeReport(paths: List<String>): List<NodeStatus> =
+    withContext(Dispatchers.IO) {
+        val granted = rootKnownGranted()
+        paths.map { path ->
+            if (!granted) {
+                NodeStatus(path, exists = false, writable = false, sample = null)
+            } else {
+                val exists = runCatching {
+                    Shell.cmd("test -e ${shellQuote(path)}").exec().isSuccess
+                }.getOrDefault(false)
+                val writable = runCatching {
+                    Shell.cmd("test -w ${shellQuote(path)}").exec().isSuccess
+                }.getOrDefault(false)
+                val sample = runCatching {
+                    Shell.cmd("cat ${shellQuote(path)} 2>/dev/null | head -c 120").exec()
+                        .out.joinToString(" ").trim()
+                }.getOrNull()
+                NodeStatus(path, exists, writable, sample?.takeIf { it.isNotEmpty() })
+            }
+        }
+    }
+
+/**
+ * Whether the last probe found a root shell, without forcing a re-probe.
+ *
+ * Every caller of `nodeExists`/`readNode` already establishes the environment
+ * once, so re-entering `environment()` on each of ~12 probes re-ran the whole
+ * batched script — including `pm list packages` — every couple of seconds while
+ * the tuning screen sat there loading.
+ */
+fun rootKnownGranted(): Boolean = cached?.environment?.granted == true
+
 suspend fun nodeExists(path: String): Boolean = withContext(Dispatchers.IO) {
-    if (!isRootAvailable()) return@withContext false
+    if (!rootKnownGranted()) return@withContext false
     try {
         Shell.cmd("test -w ${shellQuote(path)}").exec().isSuccess
     } catch (_: Exception) {
