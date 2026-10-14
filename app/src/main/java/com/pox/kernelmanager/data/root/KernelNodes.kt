@@ -201,6 +201,24 @@ object KernelNodes {
         // kernel interface. It exists only on those ROMs.
         val xswapd = writable("/dev/memcg/memory.xswapd.enable")
 
+        // read_ahead_kb, queue/scheduler and scaling_governor exist on every
+        // stock Linux / MTK build; the queue and cpu names are discovered.
+        var blockQueue: String? = null
+        for (queue in blockDevices()) {
+            if (writable("$queue/queue/read_ahead_kb")) {
+                blockQueue = queue
+                break
+            }
+        }
+
+        var cpuPolicy: String? = null
+        for (policy in cpufreqPolicies()) {
+            if (writable("$policy/cpufreq/scaling_governor")) {
+                cpuPolicy = policy
+                break
+            }
+        }
+
         return mapOf(
             // Gaming mode is emulated from perfmgr: boost + FPSGO touch boost.
             TuningFeature.GAMING_MODE to (perfBoost && touchBoost),
@@ -216,24 +234,6 @@ object KernelNodes {
             TuningFeature.DT2W to false,
             TuningFeature.TRUE_TONE to false,
             TuningFeature.VIBRATOR_STRENGTH to false,
-
-            // read_ahead_kb, queue/scheduler and scaling_governor exist on every
-            // stock Linux / MTK build; the queue and cpu names are discovered.
-            var blockQueue: String? = null
-            for (queue in blockDevices()) {
-                if (writable("$queue/queue/read_ahead_kb")) {
-                    blockQueue = queue
-                    break
-                }
-            }
-
-            var cpuPolicy: String? = null
-            for (policy in cpufreqPolicies()) {
-                if (writable("$policy/cpufreq/scaling_governor")) {
-                    cpuPolicy = policy
-                    break
-                }
-            }
 
             return mapOf(
                 // Gaming mode is emulated from perfmgr: boost + FPSGO touch boost.
