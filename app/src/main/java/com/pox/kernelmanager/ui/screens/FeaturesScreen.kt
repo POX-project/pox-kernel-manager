@@ -12,6 +12,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pox.kernelmanager.data.model.TuningFeature
 import com.pox.kernelmanager.data.model.GamingModeLevel
 import com.pox.kernelmanager.ui.components.*
@@ -26,6 +29,17 @@ fun FeaturesScreen(
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Root can be granted, or a module installed, while the app is backgrounded,
+    // so re-probe on resume or the stale result leaves everything greyed out.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onAppForegrounded()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(uiState.feedbackMessage) {
         uiState.feedbackMessage?.let { msg ->
@@ -151,6 +165,8 @@ fun FeaturesScreen(
                 enabled = uiState.features.isSupported(TuningFeature.THERMAL_GUARD)
             )
 
+            UnsupportedReason(uiState.features.reasonFor(TuningFeature.THERMAL_GUARD))
+
             // 3. MIUI / HyperOS xswapd Subsystem
             SectionHeader(
                 title = "HyperOS xswapd Daemon",
@@ -165,6 +181,8 @@ fun FeaturesScreen(
                 icon = Icons.Default.Compress,
                 enabled = uiState.features.isSupported(TuningFeature.XSWAPD)
             )
+
+            UnsupportedReason(uiState.features.reasonFor(TuningFeature.XSWAPD))
 
             Card(
                 modifier = Modifier
@@ -199,6 +217,7 @@ fun FeaturesScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     FilledTonalButton(
                         onClick = { viewModel.triggerXswapdReclaim() },
+                        enabled = uiState.features.isSupported(TuningFeature.XSWAPD),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("Reclaim")
@@ -256,16 +275,96 @@ fun FeaturesScreen(
                 enabled = uiState.features.isSupported(TuningFeature.DYNAMIC_FSYNC)
             )
 
+            UnsupportedReason(uiState.features.reasonFor(TuningFeature.DYNAMIC_FSYNC))
+
             FeatureSliderCard(
                 title = "UFS Queue Readahead",
                 valueLabel = "${uiState.features.readAheadKb} KB",
-                description = "Optimized readahead buffer size for sequential flash throughput",
+                description = "Readahead buffer size for sequential flash throughput",
                 value = uiState.features.readAheadKb.toFloat(),
                 valueRange = 64f..512f,
                 steps = 6,
                 onValueChange = { viewModel.setReadAhead(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.READ_AHEAD)
             )
+            UnsupportedReason(uiState.features.reasonFor(TuningFeature.READ_AHEAD))
+
+            if (uiState.features.availableSchedulers.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "I/O SCHEDULER",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    uiState.features.availableSchedulers.forEachIndexed { index, scheduler ->
+                        SegmentedButton(
+                            selected = uiState.features.ioScheduler == scheduler,
+                            onClick = { viewModel.setIoScheduler(scheduler) },
+                            enabled = uiState.features.isSupported(TuningFeature.IO_SCHEDULER),
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = uiState.features.availableSchedulers.size
+                            )
+                        ) {
+                            Text(scheduler, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+
+            if (uiState.features.availableGovernors.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "CPU GOVERNOR",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    uiState.features.availableGovernors.forEachIndexed { index, governor ->
+                        SegmentedButton(
+                            selected = uiState.features.cpuGovernor == governor,
+                            onClick = { viewModel.setCpuGovernor(governor) },
+                            enabled = uiState.features.isSupported(TuningFeature.CPU_GOVERNOR),
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = uiState.features.availableGovernors.size
+                            )
+                        ) {
+                            Text(governor, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+                UnsupportedReason(uiState.features.reasonFor(TuningFeature.CPU_GOVERNOR))
+            }
+
+            if (uiState.features.isSupported(TuningFeature.ZRAM_SIZE)) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "ZRAM BACKING SIZE",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    listOf(128L, 256L, 512L, 1024L, 2048L).forEach { size ->
+                        FilterChip(
+                            selected = uiState.features.zramSizeMb == size,
+                            onClick = { viewModel.setZramSizeMb(size) },
+                            label = { Text("${size}M", style = MaterialTheme.typography.labelSmall) },
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
         }

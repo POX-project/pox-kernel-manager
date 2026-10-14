@@ -102,7 +102,61 @@ object KernelNodes {
     const val ZRAM_COMP_ALGORITHM = "/sys/block/zram0/comp_algorithm"
 
     /** Generic block queue attributes; the queue name must be discovered. */
-    const val SYS_BLOCK = "/sys/block"
+    const val SYS_BLOCK = "/sys/block
+
+    /** Standard cpufreq attributes; the cpu index must be discovered. */
+    const val CPUFREQ = "/sys/devices/system/cpu"
+
+    // ---- Runtime discovery helpers ----
+
+    /**
+     * Block queues that exist, e.g. `["/sys/block/sda", "/sys/block/zram0"]`.
+     *
+     * begonia is UFS, so the queue is `sda` — but the name is read back rather
+     * than assumed, because a different storage layout would break every
+     * hardcoded path the app used to carry.
+     */
+    suspend fun blockDevices(): List<String> {
+        val result = ShellUtils.runCommand("ls /sys/block 2>/dev/null")
+        if (!result.isSuccess) return emptyList()
+        return result.output.map { it.trim() }.filter { it.isNotEmpty() }.map { "/sys/block/$it" }
+    }
+
+    /** CPUs that expose a cpufreq policy, e.g. `["cpu0", "cpu6", ...]`. */
+    suspend fun cpufreqPolicies(): List<String> {
+        val result = ShellUtils.runCommand(
+            "ls /sys/devices/system/cpu/cpu[0-9]*/cpufreq 2>/dev/null"
+        )
+        if (!result.isSuccess) return emptyList()
+        return result.output
+            .map { it.trim() }
+            .filter { it.endsWith("/cpufreq") }
+            .map { it.removeSuffix("/cpufreq") }
+    }
+
+    /**
+     * Parse a sysfs scheduler or governor list.
+     *
+     * `queue/scheduler` reads `[deadline] kyber none` and `scaling_governor` reads
+     * `schedutil`, so both go through the bracket-aware parser.
+     */
+    fun parseSelection(raw: String): Pair<String, List<String>> {
+        val options = raw.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        val active = options.firstOrNull { it.startsWith("[") && it.endsWith("]") }
+            ?.removePrefix("[")?.removeSuffix("]")
+        return (active ?: "") to options.map { it.trim('[', ']') }.distinct()
+    }
+
+    /**
+     * Render a sysfs selection list with [target] bracketed.
+     *
+     * The kernel expects the whole list back with the new entry marked, which is
+     * why writing a bare scheduler name fails: it would leave the list malformed.
+     */
+    fun renderSelection(options: List<String>, target: String): String? {
+        if (options.isEmpty() || options.none { it == target }) return null
+        return options.joinToString(" ") { if (it == target) "[$it]" else it }
+    }"
 
     private const val PROBE_TTL_MS = 30_000L
 
@@ -163,9 +217,34 @@ object KernelNodes {
             TuningFeature.TRUE_TONE to false,
             TuningFeature.VIBRATOR_STRENGTH to false,
 
-            // read_ahead_kb exists on every block queue; confirmed by discovery.
-            TuningFeature.READ_AHEAD to true
-        )
+            // read_ahead_kb, queue/scheduler and scaling_governor exist on every
+            // stock Linux / MTK build; the queue and cpu names are discovered.
+            val blockQueue = blockDevices().firstOrNull { queue ->
+                writable("$queue/queue/read_ahead_kb")
+            }
+            val cpuPolicy = cpufreqPolicies().firstOrNull { writable("$it/cpufreq/scaling_governor") }
+
+            return mapOf(
+                // Gaming mode is emulated from perfmgr: boost + FPSGO touch boost.
+                TuningFeature.GAMING_MODE to (perfBoost && touchBoost),
+                TuningFeature.TOUCH_BOOST to touchBoost,
+                TuningFeature.FPS_CAP to fpsCap,
+                TuningFeature.DYNAMIC_FSYNC to dynFsync,
+                TuningFeature.XSWAPD to xswapd,
+
+                // No node exists for these in pox-begonia-kernel.
+                TuningFeature.BYPASS_CHARGING to false,
+                TuningFeature.CHARGE_LIMIT to false,
+                TuningFeature.THERMAL_GUARD to false,
+                TuningFeature.DT2W to false,
+                TuningFeature.TRUE_TONE to false,
+                TuningFeature.VIBRATOR_STRENGTH to false,
+
+                TuningFeature.READ_AHEAD to (blockQueue != null),
+                TuningFeature.IO_SCHEDULER to (blockQueue != null),
+                TuningFeature.CPU_GOVERNOR to (cpuPolicy != null),
+                TuningFeature.ZRAM_SIZE to writable("/sys/block/zram0/disksize")
+            )
     }
 
     fun invalidate() {

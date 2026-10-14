@@ -30,6 +30,7 @@ class FeaturesViewModel : ViewModel() {
 
     fun onAppForegrounded() {
         ShellUtils.invalidateCache()
+        com.pox.kernelmanager.data.root.KernelNodes.invalidate()
         loadFeatures()
     }
 
@@ -66,9 +67,15 @@ class FeaturesViewModel : ViewModel() {
 
     fun setGamingMode(level: GamingModeLevel) = apply { TuningRepository.setGamingMode(level) }
 
-    fun setTouchBoost(enable: Boolean) = apply { TuningRepository.setTouchBoost(enable) }
+fun setTouchBoost(enable: Boolean) = apply { TuningRepository.setTouchBoost(enable) }
 
-    fun setFpsCap(enabled: Boolean) = apply { TuningRepository.setFpsCap(enabled) }
+fun setFpsCap(fps: Int) = apply { TuningRepository.setFpsCap(fps) }
+
+fun setIoScheduler(scheduler: String) = apply { TuningRepository.setIoScheduler(scheduler) }
+
+fun setCpuGovernor(governor: String) = apply { TuningRepository.setCpuGovernor(governor) }
+
+fun setZramSizeMb(sizeMb: Long) = apply { TuningRepository.setZramSizeMb(sizeMb) }
 
     fun toggleBypassCharging(enable: Boolean) = apply { TuningRepository.setBypassCharging(enable) }
 

@@ -128,13 +128,19 @@ object TuningRepository {
         } else prefs.getBoolean("dynamic_fsync", false)
 
         val readAhead = if (isRoot) {
-            readAheadKb()?.toIntOrNull() ?: prefs.getInt("read_ahead_kb", 256)
+            blockQueues().firstNotNullOfOrNull { ShellUtils.readNode("$it/read_ahead_kb") }?.toIntOrNull()
+                ?: prefs.getInt("read_ahead_kb", 256)
         } else prefs.getInt("read_ahead_kb", 256)
 
-        val scheduler = blockQueues().firstNotNullOfOrNull { queue ->
-            ShellUtils.readNode("$queue/scheduler")
-        }.orEmpty()
-        val activeScheduler = scheduler.substringAfter("[").substringBefore("]")
+        val schedulerRaw = blockQueues().firstNotNullOfOrNull { ShellUtils.readNode("$it/scheduler") }.orEmpty()
+        val (activeScheduler, schedulerOptions) = KernelNodes.parseSelection(schedulerRaw)
+
+        val governorRaw = KernelNodes.cpufreqPolicies()
+            .firstNotNullOfOrNull { ShellUtils.readNode("$it/cpufreq/scaling_governor") }
+            .orEmpty()
+        val (activeGovernor, governorOptions) = KernelNodes.parseSelection(governorRaw)
+
+        val zramSize = ShellUtils.readNode("/sys/block/zram0/disksize")?.trim()?.toLongOrNull()?.div(1024 * 1024) ?: 0L
 
         TuningFeatures(
             gamingMode = gamingLevel,
@@ -150,7 +156,11 @@ object TuningRepository {
             vibratorStrengthPercent = vibrator,
             dynamicFsync = fsync,
             readAheadKb = readAhead,
-            ioScheduler = activeScheduler.ifBlank { prefs.getString("io_scheduler", "noop") ?: "noop" },
+            ioScheduler = activeScheduler,
+            availableSchedulers = schedulerOptions,
+            cpuGovernor = activeGovernor,
+            availableGovernors = governorOptions,
+            zramSizeMb = zramSize,
             unsupported = support.filterValues { !it }.keys
         )
     }
@@ -307,19 +317,114 @@ object TuningRepository {
     }
 
     /** Block queues that actually exist, discovered instead of guessed. */
-    private suspend fun blockQueues(): List<String> {
-        val listing = ShellUtils.runCommand("ls /sys/block 2>/dev/null")
-        if (!listing.isSuccess) return emptyList()
-        return listing.output.map { it.trim() }.filter { it.isNotEmpty() }.map { "/sys/block/$it/queue" }
-    }
-
-    private suspend fun readAheadKb(): String? {
-        val listing = ShellUtils.runCommand("ls /sys/block 2>/dev/null")
-        if (!listing.isSuccess) return null
-        val first = listing.output.firstOrNull { it.isNotBlank() }?.trim() ?: return null
-        return ShellUtils.readNode("/sys/block/$first/queue/read_ahead_kb")
-    }
+    private suspend fun blockQueues(): List<String> =
+        KernelNodes.blockDevices().map { "$it/queue" }
 
     private suspend fun notApplied(action: String): TuningApplyResult =
         TuningApplyResult(false, "$action saved (root required to apply to kernel directly)")
+
+    // ---- Standard Linux controls: these work on every root solution ----
+
+    /**
+     * Switch the I/O scheduler.
+     *
+     * `queue/scheduler` expects the whole option list back with the new entry
+     * bracketed, so a bare scheduler name is rejected. begonia offers noop,
+     * deadline and cfq, plus the mq variants kyber and deadline-mq depending on
+     * the queue.
+     */
+    suspend fun setIoScheduler(scheduler: String): TuningApplyResult = withContext(Dispatchers.IO) {
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("I/O scheduler")
+        if (!isSupported(TuningFeature.IO_SCHEDULER)) return@withContext unsupported(TuningFeature.IO_SCHEDULER)
+
+        var applied = 0
+        val failures = mutableListOf<String>()
+        for (queue in blockQueues()) {
+            val raw = ShellUtils.readNode("$queue/scheduler") ?: continue
+            val (active, options) = KernelNodes.parseSelection(raw)
+            if (active == scheduler) { applied++; continue }
+            val payload = KernelNodes.renderSelection(options, scheduler)
+            if (payload == null) { failures += queue; continue }
+            if (ShellUtils.fastWrite("$queue/scheduler", payload)) applied++ else failures += queue
+        }
+
+        when {
+            applied > 0 && failures.isEmpty() -> TuningApplyResult(true, "I/O scheduler set to $scheduler")
+            applied > 0 -> TuningApplyResult(true, "I/O scheduler set to $scheduler (skipped ${failures.size} queue(s))")
+            else -> TuningApplyResult(false, "Kernel rejected $scheduler on ${failures.size} queue(s)")
+        }
+    }
+
+    /**
+     * Set the cpufreq governor on every policy.
+     *
+     * begonia compiles schedutil, performance, powersave, ondemand and userspace.
+     */
+    suspend fun setCpuGovernor(governor: String): TuningApplyResult = withContext(Dispatchers.IO) {
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("CPU governor")
+        if (!isSupported(TuningFeature.CPU_GOVERNOR)) return@withContext unsupported(TuningFeature.CPU_GOVERNOR)
+
+        val policies = KernelNodes.cpufreqPolicies()
+        if (policies.isEmpty()) return@withContext TuningApplyResult(false, "No cpufreq policy found")
+
+        var applied = 0
+        for (policy in policies) {
+            if (ShellUtils.fastWrite("$policy/cpufreq/scaling_governor", governor)) applied++
+        }
+
+        if (applied == 0) {
+            TuningApplyResult(false, "No policy accepted '$governor'")
+        } else {
+            TuningApplyResult(true, "Governor '$governor' on $applied/${policies.size} policies")
+        }
+    }
+
+    /** Resize the zram backing device. Takes effect immediately. */
+    suspend fun setZramSizeMb(sizeMb: Long): TuningApplyResult = withContext(Dispatchers.IO) {
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("ZRAM size")
+        if (!isSupported(TuningFeature.ZRAM_SIZE)) return@withContext unsupported(TuningFeature.ZRAM_SIZE)
+
+        val bytes = sizeMb.coerceAtLeast(64) * 1024 * 1024
+        val ok = ShellUtils.fastWrite("/sys/block/zram0/disksize", bytes.toString()) {
+            it.trim().toLongOrNull() == bytes
+        }
+        if (ok) TuningApplyResult(true, "ZRAM set to ${sizeMb}MB") else TuningApplyResult(false, "Kernel rejected ${sizeMb}MB (try 64/128/256/512)")
+    }
+
+    /** Cap the frame rate using MediaTek's syslimiter. */
+    suspend fun setFpsCap(fps: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("FPS cap")
+        if (!isSupported(TuningFeature.FPS_CAP)) return@withContext unsupported(TuningFeature.FPS_CAP)
+
+        if (fps == 0) {
+            // 0 means uncapped: clear the limiter.
+            return@withContext applyKernelWrites(
+                successLabel = "FPS cap released",
+                KernelNodes.FPS_FORCE_DISABLE to "1"
+            )
+        }
+
+        val megahertz = fps * 1000
+        val nodes = mapOf(
+            60 to KernelNodes.FPS_60,
+            90 to KernelNodes.FPS_90,
+            120 to KernelNodes.FPS_120,
+            144 to KernelNodes.FPS_144
+        )
+        val target = nodes[fps]
+            ?: return@withContext TuningApplyResult(false, "This kernel exposes 60/90/120/144 only")
+
+        val cleared = applyKernelWrites(
+            successLabel = "FPS cap cleared on the other refresh rates",
+            *nodes.filterValues { it != target }.values.map { it to "0" }.toTypedArray()
+        )
+        val applied = applyKernelWrites(
+            successLabel = "FPS capped at $fps",
+            KernelNodes.FPS_FORCE_DISABLE to "0",
+            target to megahertz.toString()
+        )
+
+        if (applied.isHardwareApplied) applied
+        else TuningApplyResult(cleared.isHardwareApplied, applied.message)
+    }
 }

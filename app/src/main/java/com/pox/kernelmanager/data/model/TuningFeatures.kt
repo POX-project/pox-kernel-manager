@@ -6,19 +6,28 @@ package com.pox.kernelmanager.data.model
  * Existence is decided at runtime by probing the kernel, because POX ships
  * several editions and the available nodes differ between them.
  */
-enum class TuningFeature(val label: String) {
-    GAMING_MODE("Gaming mode"),
-    TOUCH_BOOST("Touch boost"),
-    FPS_CAP("FPS cap"),
-    BYPASS_CHARGING("Bypass charging"),
-    CHARGE_LIMIT("Charge limit"),
-    THERMAL_GUARD("Thermal guard"),
-    XSWAPD("xswapd"),
-    DT2W("Double tap to wake"),
-    TRUE_TONE("True Tone"),
-    VIBRATOR_STRENGTH("Vibrator strength"),
-    DYNAMIC_FSYNC("Dynamic fsync"),
-    READ_AHEAD("Read-ahead")
+enum class TuningFeature(val label: String, val unsupportedReason: String) {
+    GAMING_MODE("Gaming mode", "Grant root - /proc/perfmgr is not writable"),
+    TOUCH_BOOST("Touch boost", "Grant root - /proc/perfmgr/tchbst/user/usrtch is not writable"),
+    FPS_CAP("FPS cap", "Grant root - /proc/perfmgr/syslimiter is not writable"),
+
+    // No such node anywhere in pox-begonia-kernel.
+    BYPASS_CHARGING("Bypass charging", "pox-begonia-kernel exposes no charging-control interface"),
+    CHARGE_LIMIT("Charge limit", "pox-begonia-kernel exposes no charging-control interface"),
+    THERMAL_GUARD("Thermal guard", "pox-begonia-kernel exposes no charging-control interface"),
+    DT2W("Double tap to wake", "Handled by the touch HAL, not by a writable kernel node"),
+    TRUE_TONE("True Tone", "Display calibration, not a writable kernel node"),
+    VIBRATOR_STRENGTH("Vibrator strength", "Handled by the vibrator HAL, not a writable kernel node"),
+
+    // Present only on some ROMs or with a module installed.
+    XSWAPD("xswapd", "Needs /dev/memcg - MIUI/HyperOS ROMs only"),
+    DYNAMIC_FSYNC("Dynamic fsync", "Install the dyn_fsync Magisk module to create this node"),
+
+    // Standard Linux interfaces, available on every root solution.
+    READ_AHEAD("Read-ahead", "No writable block queue found under /sys/block"),
+    IO_SCHEDULER("I/O scheduler", "No writable queue scheduler found under /sys/block"),
+    CPU_GOVERNOR("CPU governor", "No writable cpufreq governor found"),
+    ZRAM_SIZE("ZRAM size", "/sys/block/zram0/disksize is not writable")
 }
 
 enum class GamingModeLevel(val value: Int, val title: String, val description: String) {
@@ -51,13 +60,24 @@ data class TuningFeatures(
     val dynamicFsync: Boolean = false,
     val readAheadKb: Int = 256,
 
-    // begonia builds CONFIG_DEFAULT_IOSCHED="noop" with mq-deadline/kyber available,
-    // so "mq-deadline" is not a scheduler this kernel can select.
-    val ioScheduler: String = "noop",
-    val availableSchedulers: List<String> = listOf("noop", "deadline", "kyber"),
+    // begonia builds CONFIG_DEFAULT_IOSCHED="noop" and compiles noop, deadline,
+    // cfq and the mq variants kyber/deadline, so "mq-deadline" is not selectable.
+    // Both lists are read back from the kernel rather than assumed.
+    val ioScheduler: String = "",
+    val availableSchedulers: List<String> = emptyList(),
+
+    // begonia compiles schedutil, performance, powersave, ondemand and userspace.
+    val cpuGovernor: String = "schedutil",
+    val availableGovernors: List<String> = emptyList(),
+
+    val zramSizeMb: Long = 0,
 
     /** Features this kernel does not implement, so the UI can disable them. */
     val unsupported: Set<TuningFeature> = emptySet()
 ) {
     fun isSupported(feature: TuningFeature): Boolean = feature !in unsupported
+
+    /** Why a control is disabled, for display next to it. */
+    fun reasonFor(feature: TuningFeature): String? =
+        if (feature in unsupported) feature.unsupportedReason else null
 }
