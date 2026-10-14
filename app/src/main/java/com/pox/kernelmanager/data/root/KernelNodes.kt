@@ -156,7 +156,7 @@ object KernelNodes {
     fun renderSelection(options: List<String>, target: String): String? {
         if (options.isEmpty() || options.none { it == target }) return null
         return options.joinToString(" ") { if (it == target) "[$it]" else it }
-    }"
+    }
 
     private const val PROBE_TTL_MS = 30_000L
 
