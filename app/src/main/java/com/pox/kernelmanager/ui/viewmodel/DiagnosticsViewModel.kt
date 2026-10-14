@@ -2,12 +2,12 @@ package com.pox.kernelmanager.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.pox.kernelmanager.data.repo.DownloadsStore
 import com.pox.kernelmanager.data.root.ShellUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -64,7 +64,6 @@ class DiagnosticsViewModel : ViewModel() {
             _uiState.value = _uiState.value.copy(isExporting = true)
             try {
                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                val outFile = File("/sdcard/Download/pox_report_$timestamp.txt")
 
                 val dmesg = ShellUtils.runCommand("dmesg").output.joinToString("\n")
                 val uname = ShellUtils.runCommand("uname -a").output.joinToString("\n")
@@ -91,12 +90,17 @@ class DiagnosticsViewModel : ViewModel() {
                     appendLine("\n[DMESG]\n$dmesg")
                 }
 
-                outFile.parentFile?.mkdirs()
-                outFile.writeText(report)
+                // Routed through MediaStore: a direct File write to /sdcard/Download
+                // throws under scoped storage on API 29+.
+                val location = DownloadsStore.write(
+                    fileName = "pox_report_$timestamp.txt",
+                    mimeType = "text/plain",
+                    content = report.toByteArray()
+                )
 
                 _uiState.value = _uiState.value.copy(
                     isExporting = false,
-                    exportMessage = "Saved report to ${outFile.absolutePath}"
+                    exportMessage = "Saved report to $location"
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(

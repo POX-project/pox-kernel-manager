@@ -173,11 +173,20 @@ object KernelUpdateRepository {
             throw Exception("Boot backup failed - the partition was not written.")
         }
 
+        // The staged zip lives in app cache, which recovery cannot read. Copy it to a
+        // location the recovery environment can actually open.
+        val stagedZip = "/data/local/tmp/${zipFile.name}"
+        emit("Staging $stagedZip...")
+        val copy = ShellUtils.runCommand("cp '${zipFile.absolutePath}' '$stagedZip' && sync")
+        if (!copy.isSuccess) {
+            throw Exception("Could not stage the package - ${copy.output.lastOrNull()?.trim()}")
+        }
+
         emit("Configuring OpenRecoveryScript for TWRP / OrangeFox...")
         ShellUtils.runCommand("mkdir -p /cache/recovery")
         val script = "/cache/recovery/openrecoveryscript"
         val stage = ShellUtils.runCommand(
-            "printf '%s\\n' 'install ${zipFile.absolutePath}' 'wipe cache' > $script"
+            "printf '%s\\n' 'install $stagedZip' 'wipe cache' > $script"
         )
         if (!stage.isSuccess) {
             throw Exception("Could not stage $script - recovery directory may be unavailable.")

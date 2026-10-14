@@ -14,7 +14,8 @@ sealed interface UpdateState {
         val totalMb: Float,
         val speedKbps: Float
     ) : UpdateState
-    data class DownloadCompleted(val file: File, val expectedSha256: String) : UpdateState
+    /** [file] stays in app cache for flashing; [savedLocation] is where it was published. */
+data class DownloadCompleted(val file: File, val savedLocation: String) : UpdateState
     data class Flashing(val currentStep: String) : UpdateState
     data class FlashSuccess(val message: String) : UpdateState
     data class Error(val message: String) : UpdateState
