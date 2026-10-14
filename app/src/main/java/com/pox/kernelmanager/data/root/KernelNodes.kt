@@ -102,7 +102,7 @@ object KernelNodes {
     const val ZRAM_COMP_ALGORITHM = "/sys/block/zram0/comp_algorithm"
 
     /** Generic block queue attributes; the queue name must be discovered. */
-    const val SYS_BLOCK = "/sys/block
+    const val SYS_BLOCK = "/sys/block"
 
     /** Standard cpufreq attributes; the cpu index must be discovered. */
     const val CPUFREQ = "/sys/devices/system/cpu"
@@ -219,10 +219,21 @@ object KernelNodes {
 
             // read_ahead_kb, queue/scheduler and scaling_governor exist on every
             // stock Linux / MTK build; the queue and cpu names are discovered.
-            val blockQueue = blockDevices().firstOrNull { queue ->
-                writable("$queue/queue/read_ahead_kb")
+            var blockQueue: String? = null
+            for (queue in blockDevices()) {
+                if (writable("$queue/queue/read_ahead_kb")) {
+                    blockQueue = queue
+                    break
+                }
             }
-            val cpuPolicy = cpufreqPolicies().firstOrNull { writable("$it/cpufreq/scaling_governor") }
+
+            var cpuPolicy: String? = null
+            for (policy in cpufreqPolicies()) {
+                if (writable("$policy/cpufreq/scaling_governor")) {
+                    cpuPolicy = policy
+                    break
+                }
+            }
 
             return mapOf(
                 // Gaming mode is emulated from perfmgr: boost + FPSGO touch boost.
