@@ -38,6 +38,11 @@ fun DiagnosticsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    // Load on first entry to the tab instead of activity start.
+    LaunchedEffect(Unit) {
+        viewModel.loadDiagnostics()
+    }
+
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->

@@ -9,6 +9,7 @@ import com.pox.kernelmanager.data.root.ShellUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -28,9 +29,13 @@ class DiagnosticsViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(DiagnosticsUiState())
     val uiState: StateFlow<DiagnosticsUiState> = _uiState.asStateFlow()
 
-    init {
-        loadDiagnostics()
-    }
+    /** Dedupes concurrent triggers: tab entry AND activity ON_RESUME fire together. */
+    private var loadJob: Job? = null
+
+    // loadDiagnostics() is deliberately not called from init: this ViewModel is
+    // activity-scoped, and the probe (root env + ~12 node checks + dmesg) costs
+    // dozens of shell round-trips. DiagnosticsScreen triggers it on tab entry,
+    // keeping that cost out of the startup path for users who never open it.
 
     fun onAppForegrounded() {
         ShellUtils.invalidateCache()
@@ -39,7 +44,8 @@ class DiagnosticsViewModel : ViewModel() {
     }
 
     fun loadDiagnostics() {
-        viewModelScope.launch {
+        if (loadJob?.isActive == true) return
+        loadJob = viewModelScope.launch {
             val root = ShellUtils.isRootAvailable()
             val report = ShellUtils.nodeReport(KernelNodes.probedNodes())
             val selinux = ShellUtils.detectSELinux()

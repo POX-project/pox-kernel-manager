@@ -88,7 +88,7 @@ object ShellUtils {
 
         // Installed managers
         appendLine("pm list packages 2>/dev/null | sed -n 's/^package://p' | " +
-            "grep -E '^(package:)?(${RootProvider.MANAGER_PACKAGES.joinToString("|") { Regex.escape(it) }})\$' | " +
+            "grep -E '^(package:)?(${RootProvider.MANAGER_PACKAGES.joinToString("|") { it.replace(".", "\\.") }})\$' | " +
             "sed 's/^package://' | sed 's/^/${PROBE_PREFIX}pkg=/'")
 
         appendLine("exit 0")

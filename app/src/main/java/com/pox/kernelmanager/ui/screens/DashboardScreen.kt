@@ -35,13 +35,24 @@ fun DashboardScreen(
     val scrollState = rememberScrollState()
 
     // Root can be granted while the app is backgrounded, so re-probe on resume.
+    // The monitor loop is tied to this composable: it starts only while the
+    // Dashboard tab is visible and the activity is at least STARTED, and is
+    // cancelled on ON_PAUSE or when the composable is disposed.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.onAppForegrounded()
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> viewModel.onAppForegrounded()
+                Lifecycle.Event.ON_PAUSE -> viewModel.onAppBackgrounded()
+                else -> Unit
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        viewModel.startHardwareMonitorLoop()
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.onAppBackgrounded()
+        }
     }
 
     Scaffold(

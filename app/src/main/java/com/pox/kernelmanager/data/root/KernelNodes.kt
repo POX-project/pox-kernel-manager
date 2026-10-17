@@ -109,7 +109,7 @@ object KernelNodes {
     const val VIBRATOR_VMAX = "/sys/devices/platform/odm/odm:vibrator@0/leds/vibrator/vmax"
 
     const val DYNAMIC_FSYNC_PROC = "/proc/perfmgr/dynamic_fsync"
-    const val DYNAMIC_FSYNC_SYS = "/sys/kernel/dyn_fsync/Dyn_fsync_active"
+    const val DYNAMIC_FSYNC_SYS = "/sys/kernel/dynamic_fsync/dynamic_fsync"
 
     /**
      * Stock zram statistics.

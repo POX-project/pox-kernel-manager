@@ -85,20 +85,25 @@ object HardwareRepository {
 
         val governor = ShellUtils.fastRead("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor") ?: "schedutil"
 
-        // 2. GPU Frequency & Load (MediaTek Mali-G76 MC4)
-        val gpuFreqRaw = ShellUtils.fastRead("/sys/kernel/ged/hal/gpu_cur_freq")
-            ?: ShellUtils.fastRead("/sys/class/misc/mali0/device/frequency")
-            ?: ShellUtils.fastRead("/sys/class/misc/mali0/device/cur_freq")
-        val gpuFreq = if (gpuFreqRaw != null && gpuFreqRaw.toIntOrNull() != null) {
-            val raw = gpuFreqRaw.toInt()
-            if (raw > 100000) raw / 1000 else raw
+        // 2. GPU Frequency & Load (MediaTek Mali-G76 MC4 via GED HAL)
+        // /sys/kernel/ged/hal/current_freqency exposes "<idx> <kHz>"
+        // /sys/kernel/ged/hal/gpu_utilization exposes "<loading> <block> <idle>"
+        val gpuFreqKhz = ShellUtils.fastRead("/sys/kernel/ged/hal/current_freqency")
+            ?.trim()?.split(Regex("\\s+"))?.getOrNull(1)?.toLongOrNull()
+        val gpuFreq = if (gpuFreqKhz != null) {
+            (gpuFreqKhz / 1000).toInt()
         } else {
-            800
+            val legacy = ShellUtils.fastRead("/sys/kernel/ged/hal/gpu_cur_freq")
+                ?: ShellUtils.fastRead("/sys/class/misc/mali0/device/cur_freq")
+            val raw = legacy?.toIntOrNull()
+            if (raw != null && raw > 100000) raw / 1000 else (raw ?: 800)
         }
 
-        val gpuLoadRaw = ShellUtils.fastRead("/sys/kernel/ged/hal/gpu_loading")
-            ?: ShellUtils.fastRead("/sys/class/misc/mali0/device/utilization")
-        val gpuLoad = gpuLoadRaw?.toIntOrNull()?.coerceIn(0, 100) ?: 12
+        val gpuLoadVal = ShellUtils.fastRead("/sys/kernel/ged/hal/gpu_utilization")
+            ?.trim()?.split(Regex("\\s+"))?.firstOrNull()?.toIntOrNull()
+        val gpuLoad = gpuLoadVal?.coerceIn(0, 100)
+            ?: ShellUtils.fastRead("/sys/kernel/ged/hal/gpu_loading")?.toIntOrNull()?.coerceIn(0, 100)
+            ?: 12
 
         // 3. RAM & ZRAM (from /proc/meminfo)
         val meminfo = ShellUtils.fastRead("/proc/meminfo") ?: ""
