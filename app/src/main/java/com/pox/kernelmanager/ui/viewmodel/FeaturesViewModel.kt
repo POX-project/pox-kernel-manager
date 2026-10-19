@@ -96,6 +96,8 @@ fun setZramSizeMb(sizeMb: Long) = apply { TuningRepository.setZramSizeMb(sizeMb)
 
     fun setMicGain(level: Int) = apply { TuningRepository.setMicGain(level) }
 
+    fun setActiveMic(mode: Int) = apply { TuningRepository.setActiveMic(mode) }
+
     fun toggleWakelockBlocker(enable: Boolean) = apply { TuningRepository.setWakelockBlocker(enable) }
 
     fun toggleXswapd(enable: Boolean) = apply { TuningRepository.setXswapdEnabled(enable) }

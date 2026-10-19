@@ -22,6 +22,7 @@ enum class TuningFeature(val label: String, val unsupportedReason: String) {
     HBM_MODE("High brightness mode", "Grant root - /proc/perfmgr/hbm_mode is not writable"),
     HEADPHONE_GAIN("Headphone gain", "Grant root - /proc/perfmgr/headphone_gain is not writable"),
     MIC_GAIN("Microphone gain", "Grant root - /proc/perfmgr/mic_gain is not writable"),
+    ACTIVE_MIC("Active microphone", "Grant root - /proc/perfmgr/active_mic is not writable"),
     VIBRATOR_STRENGTH("Vibrator strength", "Grant root - /proc/perfmgr/vibrator_strength is not writable"),
     WAKELOCK_BLOCKER("Wakelock blocker", "Grant root - /proc/perfmgr/wakelock_blocker is not writable"),
 
@@ -67,6 +68,7 @@ data class TuningFeatures(
     val vibratorStrengthPercent: Int = 85,
     val headphoneGainDb: Int = 0,
     val micGainLevel: Int = 0,
+    val activeMicMode: Int = 0,
     val wakelockBlockerEnabled: Boolean = false,
 
     // Storage & I/O

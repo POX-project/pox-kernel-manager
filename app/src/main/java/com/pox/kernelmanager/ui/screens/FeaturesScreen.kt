@@ -401,6 +401,69 @@ fun FeaturesScreen(
                 enabled = uiState.features.isSupported(TuningFeature.MIC_GAIN)
             )
 
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 5.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Active Microphone",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            val activeLabel = when (uiState.features.activeMicMode) {
+                                0 -> "Main (Bottom)"
+                                1 -> "Top (Secondary)"
+                                2 -> "Headset"
+                                3 -> "Dual Mic"
+                                else -> "Main"
+                            }
+                            Text(
+                                text = activeLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "Hardware microphone routing (/proc/perfmgr/active_mic & QS tile)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
+                    )
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        val micOptions = listOf("Main", "Top", "Headset", "Dual")
+                        micOptions.forEachIndexed { index, name ->
+                            SegmentedButton(
+                                selected = uiState.features.activeMicMode == index,
+                                onClick = { viewModel.setActiveMic(index) },
+                                enabled = uiState.features.isSupported(TuningFeature.ACTIVE_MIC),
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = micOptions.size)
+                            ) {
+                                Text(name, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            }
+
             FeatureSwitchCard(
                 title = "Wakelock Blocker",
                 description = "Aggressive kernel wakelock filter preventing rogue apps from keeping CPU awake in deep sleep",

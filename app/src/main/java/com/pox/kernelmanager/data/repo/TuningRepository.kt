@@ -182,6 +182,12 @@ object TuningRepository {
                 ?: prefs.getInt("mic_gain", 0)
         } else prefs.getInt("mic_gain", 0)
 
+        val activeMic = if (isRoot && isSupported(TuningFeature.ACTIVE_MIC)) {
+            ShellUtils.fastRead(KernelNodes.ACTIVE_MIC_PROC)?.toIntOrNull()
+                ?: ShellUtils.fastRead(KernelNodes.ACTIVE_MIC_SYS)?.toIntOrNull()
+                ?: prefs.getInt("active_mic_mode", 0)
+        } else prefs.getInt("active_mic_mode", 0)
+
         val wakelock = if (isRoot && isSupported(TuningFeature.WAKELOCK_BLOCKER)) {
             ShellUtils.fastRead(KernelNodes.WAKELOCK_BLOCKER_PROC) == "1"
         } else prefs.getBoolean("wakelock_blocker", false)
@@ -224,6 +230,7 @@ object TuningRepository {
             vibratorStrengthPercent = vibrator,
             headphoneGainDb = hpGain,
             micGainLevel = micGain,
+            activeMicMode = activeMic,
             wakelockBlockerEnabled = wakelock,
             dynamicFsync = fsync,
             readAheadKb = readAhead,
@@ -469,6 +476,39 @@ object TuningRepository {
             successLabel = "Microphone analog gain set to level $clamped",
             KernelNodes.MIC_GAIN_PROC to clamped.toString()
         )
+    }
+
+    suspend fun setActiveMic(mode: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = mode.coerceIn(0, 3)
+        prefs.edit().putInt("active_mic_mode", clamped).apply()
+        val label = when (clamped) {
+            0 -> "Main Mic (Bottom AIN0)"
+            1 -> "Top Mic (Secondary AIN2)"
+            2 -> "Headset Mic (3.5mm AIN1)"
+            3 -> "Dual Mic (Stereo AIN0+AIN2)"
+            else -> "Main Mic"
+        }
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Active microphone")
+        if (!isSupported(TuningFeature.ACTIVE_MIC)) return@withContext unsupported(TuningFeature.ACTIVE_MIC)
+
+        val kernelResult = applyKernelWrites(
+            successLabel = "Active microphone set to $label",
+            KernelNodes.ACTIVE_MIC_PROC to clamped.toString(),
+            KernelNodes.ACTIVE_MIC_SYS to clamped.toString()
+        )
+
+        // Companion ALSA mixer routing for immediate audio session redirection
+        val mixerCmd = when (clamped) {
+            0 -> "tinymix 'PGA L Select' 'AIN0' 2>/dev/null; tinymix 'PGA R Select' 'None' 2>/dev/null"
+            1 -> "tinymix 'PGA L Select' 'None' 2>/dev/null; tinymix 'PGA R Select' 'AIN2' 2>/dev/null"
+            2 -> "tinymix 'PGA L Select' 'AIN1' 2>/dev/null; tinymix 'PGA R Select' 'None' 2>/dev/null"
+            3 -> "tinymix 'PGA L Select' 'AIN0' 2>/dev/null; tinymix 'PGA R Select' 'AIN2' 2>/dev/null"
+            else -> ""
+        }
+        if (mixerCmd.isNotEmpty()) {
+            ShellUtils.runCommand(mixerCmd)
+        }
+        kernelResult
     }
 
     suspend fun setWakelockBlocker(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {

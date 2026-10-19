@@ -107,6 +107,8 @@ object KernelNodes {
 
     const val HEADPHONE_GAIN_PROC = "/proc/perfmgr/headphone_gain"
     const val MIC_GAIN_PROC = "/proc/perfmgr/mic_gain"
+    const val ACTIVE_MIC_PROC = "/proc/perfmgr/active_mic"
+    const val ACTIVE_MIC_SYS = "/sys/kernel/sound_control/active_mic"
 
     const val WAKELOCK_BLOCKER_PROC = "/proc/perfmgr/wakelock_blocker"
     const val DT2W_PROC = "/proc/perfmgr/dt2w"
@@ -204,6 +206,8 @@ object KernelNodes {
         TOUCH_SENSITIVITY_PROC,
         HEADPHONE_GAIN_PROC,
         MIC_GAIN_PROC,
+        ACTIVE_MIC_PROC,
+        ACTIVE_MIC_SYS,
         WAKELOCK_BLOCKER_PROC,
         DT2W_PROC,
         TRUE_TONE_PROC,
@@ -290,6 +294,7 @@ object KernelNodes {
         val hbmMode = writable(HBM_MODE_PROC)
         val headphoneGain = writable(HEADPHONE_GAIN_PROC)
         val micGain = writable(MIC_GAIN_PROC)
+        val activeMic = writable(ACTIVE_MIC_PROC) || writable(ACTIVE_MIC_SYS)
         val vibrator = writable(VIBRATOR_STRENGTH_PROC) || writable(VIBRATOR_VMAX)
         val wakelockBlocker = writable(WAKELOCK_BLOCKER_PROC)
 
@@ -327,6 +332,7 @@ object KernelNodes {
             TuningFeature.HBM_MODE to hbmMode,
             TuningFeature.HEADPHONE_GAIN to headphoneGain,
             TuningFeature.MIC_GAIN to micGain,
+            TuningFeature.ACTIVE_MIC to activeMic,
             TuningFeature.VIBRATOR_STRENGTH to vibrator,
             TuningFeature.WAKELOCK_BLOCKER to wakelockBlocker,
 

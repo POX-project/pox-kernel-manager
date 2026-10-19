@@ -4,4 +4,5 @@
     <string name="features">Tuning</string>
     <string name="updater">Updater</string>
     <string name="diagnostics">Diagnostics</string>
+    <string name="tile_active_mic">Active Mic</string>
 </resources>
