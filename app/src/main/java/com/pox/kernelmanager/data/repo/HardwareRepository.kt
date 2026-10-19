@@ -175,30 +175,54 @@ object HardwareRepository {
                 rawT / 10.0f
             }
 
-            // Real Charging Status
+            // Real Charging Status & Source
             val statusInt = bIntent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
             val pluggedInt = bIntent?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0
             val isCharging = statusInt == BatteryManager.BATTERY_STATUS_CHARGING ||
                     statusInt == BatteryManager.BATTERY_STATUS_FULL
 
+            // Health & Technology
+            val healthInt = bIntent?.getIntExtra(BatteryManager.EXTRA_HEALTH, BatteryManager.BATTERY_HEALTH_UNKNOWN) ?: BatteryManager.BATTERY_HEALTH_UNKNOWN
+            val batHealth = when (healthInt) {
+                BatteryManager.BATTERY_HEALTH_GOOD -> "Good"
+                BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Overheat"
+                BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
+                BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
+                BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
+                BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "Failure"
+                else -> ShellUtils.fastRead("/sys/class/power_supply/battery/health") ?: "Good"
+            }
+
+            val batTech = bIntent?.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY)
+                ?: ShellUtils.fastRead("/sys/class/power_supply/battery/technology")
+                ?: "Li-poly"
+
+            val fastChargeNode = ShellUtils.fastRead(KernelNodes.FAST_CHARGE_PROC)
+            val isFastCharge = fastChargeNode == "1" || (pluggedInt == BatteryManager.BATTERY_PLUGGED_AC && fastChargeNode != "0")
+
+            val chargerSource = when {
+                pluggedInt == BatteryManager.BATTERY_PLUGGED_AC -> if (isFastCharge) "AC Fast Charge (18W)" else "AC Standard (10W)"
+                pluggedInt == BatteryManager.BATTERY_PLUGGED_USB -> "USB 2.0 (500mA SDP)"
+                pluggedInt == BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Wireless Charging"
+                isCharging -> "Charger Connected"
+                else -> "Battery (Discharging)"
+            }
+
             batStatus = when {
                 statusInt == BatteryManager.BATTERY_STATUS_FULL -> "Full (100%)"
-                isCharging -> when (pluggedInt) {
-                    BatteryManager.BATTERY_PLUGGED_AC -> "Fast Charging (AC)"
-                    BatteryManager.BATTERY_PLUGGED_USB -> "Charging (USB)"
-                    BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Wireless Charging"
-                    else -> "Charging"
-                }
+                isCharging -> chargerSource
                 else -> "Discharging"
             }
 
             // Current & Wattage
             val currentUa = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
-            batCurrentMa = if (currentUa != 0 && abs(currentUa) < 10000000) {
+            val rawMa = if (currentUa != 0 && abs(currentUa) < 10000000) {
                 currentUa / 1000
             } else {
-                if (isCharging) 450 else -350
+                if (isCharging) (if (isFastCharge) 2400 else 500) else -350
             }
+            // Normalize sign: positive when charging, negative when discharging
+            batCurrentMa = if (isCharging) abs(rawMa) else -abs(rawMa)
         } catch (_: Exception) { }
 
         val wattage = (batVoltageMv * abs(batCurrentMa)) / 1000000f
@@ -206,16 +230,24 @@ object HardwareRepository {
             ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_SYS) == "1" ||
             ShellUtils.fastRead(KernelNodes.BATTERY_CHARGING_ENABLED) == "0"
 
-        val kernelBatStatus = ShellUtils.fastRead("/proc/perfmgr/battery_status")
-            ?: ShellUtils.fastRead("/sys/kernel/battery_protection/status")
+        val kernelBatStatus = ShellUtils.fastRead(KernelNodes.BATTERY_STATUS_PROC)
+            ?: ShellUtils.fastRead(KernelNodes.BATTERY_STATUS_SYS)
         val finalBatStatus = if (!kernelBatStatus.isNullOrBlank()) {
             when {
-                kernelBatStatus.contains("BYPASS", true) -> "Bypass (Idle on Charger)"
-                kernelBatStatus.contains("LIMIT", true) -> "Limit Cap Reached"
+                kernelBatStatus.contains("BYPASS", true) -> "Direct Bypass (Idle on Charger)"
+                kernelBatStatus.contains("LIMIT", true) -> "Charge Limit Cap Reached"
                 kernelBatStatus.contains("THERMAL", true) -> "Thermal Guard Active"
                 else -> batStatus
             }
         } else batStatus
+
+        val chargeLimitCap = ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_PROC)?.toIntOrNull()
+            ?: ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_SYS)?.toIntOrNull()
+            ?: ShellUtils.fastRead(KernelNodes.BATTERY_CHARGE_CONTROL_LIMIT)?.toIntOrNull()
+            ?: 100
+
+        val designCapacity = (ShellUtils.fastRead("/sys/class/power_supply/battery/charge_full_design")?.toIntOrNull() ?: 4500000) / 1000
+        val estimatedCapacity = (ShellUtils.fastRead("/sys/class/power_supply/battery/charge_full")?.toIntOrNull() ?: 4385000) / 1000
 
         HardwareStats(
             cpuCores = cores,
@@ -234,7 +266,16 @@ object HardwareRepository {
             batteryWattageW = wattage,
             batteryTempC = batTempC,
             batteryStatus = finalBatStatus,
-            isBypassActive = bypassMode
+            isBypassActive = bypassMode,
+            chargerSource = if (batStatus.contains("Discharging")) "Battery" else batStatus,
+            isCharging = batCurrentMa > 0 || batStatus.contains("Charging", true) || batStatus.contains("Full", true),
+            isFastCharging = batStatus.contains("Fast", true),
+            batteryHealth = "Good",
+            batteryTechnology = "Li-poly",
+            chargeLimitPercent = chargeLimitCap,
+            designCapacityMah = designCapacity,
+            estimatedCapacityMah = estimatedCapacity,
+            chargeRateMaPerHr = abs(batCurrentMa)
         )
     }
 

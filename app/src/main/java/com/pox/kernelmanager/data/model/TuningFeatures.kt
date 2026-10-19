@@ -7,16 +7,23 @@ package com.pox.kernelmanager.data.model
  * several editions and the available nodes differ between them.
  */
 enum class TuningFeature(val label: String, val unsupportedReason: String) {
-    GAMING_MODE("Gaming mode", "Grant root - /proc/perfmgr is not writable"),
-    TOUCH_BOOST("Touch boost", "Grant root - /proc/perfmgr/tchbst/user/usrtch is not writable"),
+    GAMING_MODE("Gaming mode", "Grant root - /proc/perfmgr/gaming_mode is not writable"),
+    TOUCH_BOOST("Touch boost", "Grant root - /proc/perfmgr/touch_game_mode or usrtch is not writable"),
+    TOUCH_SENSITIVITY("Touch sensitivity", "Grant root - /proc/perfmgr/touch_sensitivity is not writable"),
     FPS_CAP("FPS cap", "Grant root - /proc/perfmgr/syslimiter is not writable"),
 
+    FAST_CHARGE("Fast charging", "Grant root - /proc/perfmgr/fast_charge is not writable"),
     BYPASS_CHARGING("Bypass charging", "Grant root - /proc/perfmgr/battery_bypass is not writable"),
     CHARGE_LIMIT("Charge limit", "Grant root - /proc/perfmgr/battery_limit is not writable"),
     THERMAL_GUARD("Thermal guard", "Grant root - /sys/kernel/battery_protection/thermal_guard is not writable"),
     DT2W("Double tap to wake", "Grant root - /proc/perfmgr/dt2w is not writable"),
     TRUE_TONE("True Tone", "Grant root - /proc/perfmgr/true_tone is not writable"),
+    COLOR_MODE("Color mode", "Grant root - /proc/perfmgr/color_mode is not writable"),
+    HBM_MODE("High brightness mode", "Grant root - /proc/perfmgr/hbm_mode is not writable"),
+    HEADPHONE_GAIN("Headphone gain", "Grant root - /proc/perfmgr/headphone_gain is not writable"),
+    MIC_GAIN("Microphone gain", "Grant root - /proc/perfmgr/mic_gain is not writable"),
     VIBRATOR_STRENGTH("Vibrator strength", "Grant root - /proc/perfmgr/vibrator_strength is not writable"),
+    WAKELOCK_BLOCKER("Wakelock blocker", "Grant root - /proc/perfmgr/wakelock_blocker is not writable"),
 
     // Present only on some ROMs or with a module installed.
     XSWAPD("xswapd", "Needs /dev/memcg - MIUI/HyperOS ROMs only"),
@@ -39,8 +46,10 @@ data class TuningFeatures(
     // Gaming & Performance
     val gamingMode: GamingModeLevel = GamingModeLevel.BALANCED,
     val touchBoost240Hz: Boolean = false,
+    val touchSensitivity: Int = 0,
 
     // Smart Battery Guard & Bypass
+    val fastChargeEnabled: Boolean = true,
     val bypassCharging: Boolean = false,
     val chargeLimitPercent: Int = 100,
     val thermalGuardEnabled: Boolean = false,
@@ -53,7 +62,12 @@ data class TuningFeatures(
     // Hardware Touch & Display
     val doubleTapToWake: Boolean = false,
     val trueToneDisplay: Boolean = false,
+    val colorMode: Int = 0,
+    val hbmMode: Int = 0,
     val vibratorStrengthPercent: Int = 85,
+    val headphoneGainDb: Int = 0,
+    val micGainLevel: Int = 0,
+    val wakelockBlockerEnabled: Boolean = false,
 
     // Storage & I/O
     val dynamicFsync: Boolean = false,

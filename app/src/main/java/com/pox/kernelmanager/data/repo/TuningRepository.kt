@@ -75,13 +75,16 @@ object TuningRepository {
 
         val savedGaming = prefs.getInt("gaming_mode", 0)
         val gamingRaw = if (isRoot) {
-            val mode = ShellUtils.fastRead(KernelNodes.GAMING_MODE_SYS)?.trim()?.toIntOrNull()
-            if (mode != null) mode else {
-                val boost = ShellUtils.readNode(KernelNodes.BOOST_FG)?.trim()?.toIntOrNull()
-                if (boost != null) {
-                    boostForMode.entries.minByOrNull { kotlin.math.abs(it.value - boost) }?.key?.value
-                        ?: savedGaming
-                } else savedGaming
+            val procMode = ShellUtils.fastRead(KernelNodes.GAMING_MODE_PROC)?.trim()?.toIntOrNull()
+            if (procMode != null) procMode else {
+                val mode = ShellUtils.fastRead(KernelNodes.GAMING_MODE_SYS)?.trim()?.toIntOrNull()
+                if (mode != null) mode else {
+                    val boost = ShellUtils.readNode(KernelNodes.BOOST_FG)?.trim()?.toIntOrNull()
+                    if (boost != null) {
+                        boostForMode.entries.minByOrNull { kotlin.math.abs(it.value - boost) }?.key?.value
+                            ?: savedGaming
+                    } else savedGaming
+                }
             }
         } else savedGaming
 
@@ -92,13 +95,23 @@ object TuningRepository {
         }
 
         val touchBoost = if (isRoot) {
+            ShellUtils.fastRead(KernelNodes.TOUCH_GAME_MODE_PROC) == "1" ||
             KernelNodes.parseUsrtchField(
                 ShellUtils.readNode(KernelNodes.USRTCH).orEmpty(),
                 "enable"
             )?.let { it == 1 } ?: false
         } else prefs.getBoolean("touch_boost", false)
 
+        val touchSensitivity = if (isRoot && isSupported(TuningFeature.TOUCH_SENSITIVITY)) {
+            ShellUtils.fastRead(KernelNodes.TOUCH_SENSITIVITY_PROC)?.toIntOrNull()
+                ?: prefs.getInt("touch_sensitivity", 0)
+        } else prefs.getInt("touch_sensitivity", 0)
+
         // Battery guard & charging controls
+        val fastCharge = if (isRoot && isSupported(TuningFeature.FAST_CHARGE)) {
+            ShellUtils.fastRead(KernelNodes.FAST_CHARGE_PROC) != "0"
+        } else prefs.getBoolean("fast_charge", true)
+
         val bypass = if (isRoot && isSupported(TuningFeature.BYPASS_CHARGING)) {
             ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_PROC) == "1" ||
             ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_SYS) == "1" ||
@@ -139,14 +152,39 @@ object TuningRepository {
 
         val trueTone = if (isRoot && isSupported(TuningFeature.TRUE_TONE)) {
             ShellUtils.fastRead(KernelNodes.TRUE_TONE_SYS) == "1" ||
-            ShellUtils.readNode(KernelNodes.TRUE_TONE_PROC)?.contains("enabled") == true
+            ShellUtils.readNode(KernelNodes.TRUE_TONE_PROC)?.contains("enabled") == true ||
+            ShellUtils.fastRead(KernelNodes.TRUE_TONE_PROC) == "1"
         } else prefs.getBoolean("true_tone", false)
+
+        val colorMode = if (isRoot && isSupported(TuningFeature.COLOR_MODE)) {
+            ShellUtils.fastRead(KernelNodes.COLOR_MODE_PROC)?.toIntOrNull()
+                ?: prefs.getInt("color_mode", 0)
+        } else prefs.getInt("color_mode", 0)
+
+        val hbmMode = if (isRoot && isSupported(TuningFeature.HBM_MODE)) {
+            ShellUtils.fastRead(KernelNodes.HBM_MODE_PROC)?.toIntOrNull()
+                ?: prefs.getInt("hbm_mode", 0)
+        } else prefs.getInt("hbm_mode", 0)
 
         val vibrator = if (isRoot && isSupported(TuningFeature.VIBRATOR_STRENGTH)) {
             val level = ShellUtils.fastRead(KernelNodes.VIBRATOR_STRENGTH_PROC)?.toIntOrNull()
                 ?: ShellUtils.fastRead(KernelNodes.VIBRATOR_VMAX)?.toIntOrNull()
-            if (level != null) (level * 100 / 6).coerceIn(0, 100) else prefs.getInt("vibrator_strength", 85)
+            if (level != null) (level * 100 / 13).coerceIn(0, 100) else prefs.getInt("vibrator_strength", 85)
         } else prefs.getInt("vibrator_strength", 85)
+
+        val hpGain = if (isRoot && isSupported(TuningFeature.HEADPHONE_GAIN)) {
+            ShellUtils.fastRead(KernelNodes.HEADPHONE_GAIN_PROC)?.toIntOrNull()
+                ?: prefs.getInt("headphone_gain", 0)
+        } else prefs.getInt("headphone_gain", 0)
+
+        val micGain = if (isRoot && isSupported(TuningFeature.MIC_GAIN)) {
+            ShellUtils.fastRead(KernelNodes.MIC_GAIN_PROC)?.toIntOrNull()
+                ?: prefs.getInt("mic_gain", 0)
+        } else prefs.getInt("mic_gain", 0)
+
+        val wakelock = if (isRoot && isSupported(TuningFeature.WAKELOCK_BLOCKER)) {
+            ShellUtils.fastRead(KernelNodes.WAKELOCK_BLOCKER_PROC) == "1"
+        } else prefs.getBoolean("wakelock_blocker", false)
 
         val fsync = if (isRoot && isSupported(TuningFeature.DYNAMIC_FSYNC)) {
             ShellUtils.fastRead(KernelNodes.DYNAMIC_FSYNC_PROC) == "1" ||
@@ -171,6 +209,8 @@ object TuningRepository {
         TuningFeatures(
             gamingMode = gamingLevel,
             touchBoost240Hz = touchBoost,
+            touchSensitivity = touchSensitivity,
+            fastChargeEnabled = fastCharge,
             bypassCharging = bypass,
             chargeLimitPercent = chargeLimit,
             thermalGuardEnabled = thermalGuard,
@@ -179,7 +219,12 @@ object TuningRepository {
             xswapdQuotaMb = xswapdQuota,
             doubleTapToWake = dt2w,
             trueToneDisplay = trueTone,
+            colorMode = colorMode,
+            hbmMode = hbmMode,
             vibratorStrengthPercent = vibrator,
+            headphoneGainDb = hpGain,
+            micGainLevel = micGain,
+            wakelockBlockerEnabled = wakelock,
             dynamicFsync = fsync,
             readAheadKb = readAhead,
             ioScheduler = activeScheduler,
@@ -239,7 +284,28 @@ object TuningRepository {
         prefs.edit().putBoolean("touch_boost", enable).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Touch boost")
         if (!isSupported(TuningFeature.TOUCH_BOOST)) return@withContext unsupported(TuningFeature.TOUCH_BOOST)
+        applyKernelWrites(
+            successLabel = if (enable) "240Hz Touch Gaming Mode active" else "Standard touch mode",
+            KernelNodes.TOUCH_GAME_MODE_PROC to if (enable) "1" else "0"
+        )
         applyTouchBoost(enable, GamingModeLevel.GAMING)
+    }
+
+    suspend fun setTouchSensitivity(level: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = level.coerceIn(0, 3)
+        prefs.edit().putInt("touch_sensitivity", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Touch sensitivity")
+        if (!isSupported(TuningFeature.TOUCH_SENSITIVITY)) return@withContext unsupported(TuningFeature.TOUCH_SENSITIVITY)
+        val label = when (clamped) {
+            0 -> "Normal"
+            1 -> "Gaming"
+            2 -> "Sensitive"
+            else -> "Ultra"
+        }
+        applyKernelWrites(
+            successLabel = "Touch sensitivity set to $label (level $clamped)",
+            KernelNodes.TOUCH_SENSITIVITY_PROC to clamped.toString()
+        )
     }
 
     suspend fun setFpsCap(enabled: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
@@ -254,6 +320,16 @@ object TuningRepository {
     }
 
     // ---- Battery guard & charging controls ----
+
+    suspend fun setFastCharge(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
+        prefs.edit().putBoolean("fast_charge", enable).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Fast charge")
+        if (!isSupported(TuningFeature.FAST_CHARGE)) return@withContext unsupported(TuningFeature.FAST_CHARGE)
+        applyKernelWrites(
+            successLabel = if (enable) "18W Fast Charging enabled" else "Standard charging enforced (500mA USB / 10W AC)",
+            KernelNodes.FAST_CHARGE_PROC to if (enable) "1" else "0"
+        )
+    }
 
     suspend fun setBypassCharging(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
         prefs.edit().putBoolean("bypass_charging", enable).apply()
@@ -339,14 +415,80 @@ object TuningRepository {
         )
     }
 
+    suspend fun setColorMode(mode: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = mode.coerceIn(0, 3)
+        prefs.edit().putInt("color_mode", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Color mode")
+        if (!isSupported(TuningFeature.COLOR_MODE)) return@withContext unsupported(TuningFeature.COLOR_MODE)
+        val label = when (clamped) {
+            1 -> "Reference D65"
+            2 -> "Vivid"
+            3 -> "SLog3"
+            else -> "Standard"
+        }
+        applyKernelWrites(
+            successLabel = "Display color profile set to $label",
+            KernelNodes.COLOR_MODE_PROC to clamped.toString()
+        )
+    }
+
+    suspend fun setHbmMode(level: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = level.coerceIn(0, 3)
+        prefs.edit().putInt("hbm_mode", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("High brightness mode")
+        if (!isSupported(TuningFeature.HBM_MODE)) return@withContext unsupported(TuningFeature.HBM_MODE)
+        val label = when (clamped) {
+            1 -> "L1 Boost (600 nits)"
+            2 -> "L2 High (750 nits)"
+            3 -> "L3 Peak (850 nits)"
+            else -> "Off"
+        }
+        applyKernelWrites(
+            successLabel = "High Brightness Mode set to $label",
+            KernelNodes.HBM_MODE_PROC to clamped.toString()
+        )
+    }
+
+    suspend fun setHeadphoneGain(gainDb: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = gainDb.coerceIn(0, 8)
+        prefs.edit().putInt("headphone_gain", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Headphone gain")
+        if (!isSupported(TuningFeature.HEADPHONE_GAIN)) return@withContext unsupported(TuningFeature.HEADPHONE_GAIN)
+        applyKernelWrites(
+            successLabel = "Headphone gain set to +${clamped}dB",
+            KernelNodes.HEADPHONE_GAIN_PROC to clamped.toString()
+        )
+    }
+
+    suspend fun setMicGain(level: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = level.coerceIn(0, 4)
+        prefs.edit().putInt("mic_gain", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Microphone gain")
+        if (!isSupported(TuningFeature.MIC_GAIN)) return@withContext unsupported(TuningFeature.MIC_GAIN)
+        applyKernelWrites(
+            successLabel = "Microphone analog gain set to level $clamped",
+            KernelNodes.MIC_GAIN_PROC to clamped.toString()
+        )
+    }
+
+    suspend fun setWakelockBlocker(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
+        prefs.edit().putBoolean("wakelock_blocker", enable).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Wakelock blocker")
+        if (!isSupported(TuningFeature.WAKELOCK_BLOCKER)) return@withContext unsupported(TuningFeature.WAKELOCK_BLOCKER)
+        applyKernelWrites(
+            successLabel = if (enable) "Aggressive deep sleep wakelock blocker active" else "Wakelock blocker disabled",
+            KernelNodes.WAKELOCK_BLOCKER_PROC to if (enable) "1" else "0"
+        )
+    }
+
     suspend fun setVibratorStrength(percent: Int): TuningApplyResult = withContext(Dispatchers.IO) {
         val clamped = percent.coerceIn(0, 100)
         prefs.edit().putInt("vibrator_strength", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Vibrator strength")
         if (!isSupported(TuningFeature.VIBRATOR_STRENGTH)) return@withContext unsupported(TuningFeature.VIBRATOR_STRENGTH)
-        val level = (clamped * 6 / 100).coerceIn(1, 6)
+        val level = (clamped * 13 / 100).coerceIn(0, 13)
         applyKernelWrites(
-            successLabel = "Vibrator strength set to $clamped% (level=$level)",
+            successLabel = "Vibrator strength set to $clamped% (level=0x${Integer.toHexString(level).uppercase()})",
             KernelNodes.VIBRATOR_STRENGTH_PROC to level.toString(),
             KernelNodes.VIBRATOR_VMAX to level.toString()
         )

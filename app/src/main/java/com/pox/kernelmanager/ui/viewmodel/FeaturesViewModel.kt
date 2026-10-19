@@ -77,12 +77,26 @@ fun setCpuGovernor(governor: String) = apply { TuningRepository.setCpuGovernor(g
 
 fun setZramSizeMb(sizeMb: Long) = apply { TuningRepository.setZramSizeMb(sizeMb) }
 
+    fun toggleFastCharge(enable: Boolean) = apply { TuningRepository.setFastCharge(enable) }
+
     fun toggleBypassCharging(enable: Boolean) = apply { TuningRepository.setBypassCharging(enable) }
 
     fun setChargeLimit(limitPercent: Int) = apply { TuningRepository.setChargeLimit(limitPercent) }
 
     fun toggleThermalGuard(enable: Boolean, tempLimit: Int) =
         apply { TuningRepository.setThermalGuard(enable, tempLimit) }
+
+    fun setTouchSensitivity(level: Int) = apply { TuningRepository.setTouchSensitivity(level) }
+
+    fun setColorMode(mode: Int) = apply { TuningRepository.setColorMode(mode) }
+
+    fun setHbmMode(level: Int) = apply { TuningRepository.setHbmMode(level) }
+
+    fun setHeadphoneGain(gainDb: Int) = apply { TuningRepository.setHeadphoneGain(gainDb) }
+
+    fun setMicGain(level: Int) = apply { TuningRepository.setMicGain(level) }
+
+    fun toggleWakelockBlocker(enable: Boolean) = apply { TuningRepository.setWakelockBlocker(enable) }
 
     fun toggleXswapd(enable: Boolean) = apply { TuningRepository.setXswapdEnabled(enable) }
 

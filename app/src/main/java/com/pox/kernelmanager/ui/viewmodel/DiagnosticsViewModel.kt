@@ -104,6 +104,8 @@ class DiagnosticsViewModel : ViewModel() {
                     appendLine("==========================================")
                     appendLine("\n[MEMINFO]\n$meminfo")
                     appendLine("\n[MOUNTS]\n$mounts")
+                    appendLine("\n[CHARGING & BATTERY]\n${ShellUtils.fastRead(KernelNodes.BATTERY_STATUS_PROC) ?: ShellUtils.fastRead(KernelNodes.BATTERY_STATUS_SYS) ?: "N/A"}")
+                    appendLine("\n[PERF PROFILE]\n${ShellUtils.fastRead(KernelNodes.PROFILE_PROC) ?: "N/A"}")
                     appendLine("\n[DMESG]\n$dmesg")
                     appendLine("\n[KERNEL NODE REPORT]")
                     ShellUtils.nodeReport(KernelNodes.probedNodes()).forEach { node ->

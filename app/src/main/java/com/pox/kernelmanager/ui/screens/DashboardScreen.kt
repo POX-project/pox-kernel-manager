@@ -20,6 +20,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pox.kernelmanager.BuildConfig
+import com.pox.kernelmanager.ui.components.ChargingDetailCard
 import com.pox.kernelmanager.ui.components.PoxTopAppBar
 import com.pox.kernelmanager.ui.components.SectionHeader
 import com.pox.kernelmanager.ui.components.StatCard
@@ -39,7 +40,7 @@ fun DashboardScreen(
     // Dashboard tab is visible and the activity is at least STARTED, and is
     // cancelled on ON_PAUSE or when the composable is disposed.
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner.lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> viewModel.onAppForegrounded()
@@ -166,33 +167,12 @@ fun DashboardScreen(
                 }
             }
 
-            // Section: Battery & Power
+            // Section: Battery & Charging Telemetry
             SectionHeader(
-                title = "Battery & Power Subsystem",
-                subtitle = "Live charging telemetry, thermals & direct bypass"
+                title = "Battery & Charging Telemetry",
+                subtitle = "Hardware battery state, charging rates & direct bypass"
             )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                StatCard(
-                    title = "Battery Level",
-                    value = "${uiState.stats.batteryLevel}%",
-                    icon = Icons.Default.BatteryChargingFull,
-                    subtitle = "${uiState.stats.batteryStatus} (${String.format("%.1f", uiState.stats.batteryWattageW)}W)",
-                    progress = uiState.stats.batteryLevel / 100f,
-                    modifier = Modifier.weight(1f)
-                )
-                StatCard(
-                    title = "Temperature",
-                    value = "${String.format("%.1f", uiState.stats.batteryTempC)}°C",
-                    icon = Icons.Default.Thermostat,
-                    subtitle = if (uiState.stats.isBypassActive) "Bypass Active" else "${uiState.stats.batteryVoltageMv}mV / ${uiState.stats.batteryCurrentMa}mA",
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            ChargingDetailCard(stats = uiState.stats)
 
             Spacer(modifier = Modifier.height(14.dp))
 

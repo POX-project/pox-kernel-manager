@@ -9,6 +9,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -22,6 +24,7 @@ fun FeatureSwitchCard(
     icon: ImageVector? = null,
     enabled: Boolean = true
 ) {
+    val haptic = LocalHapticFeedback.current
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -71,7 +74,10 @@ fun FeatureSwitchCard(
             Spacer(modifier = Modifier.width(12.dp))
             Switch(
                 checked = isChecked,
-                onCheckedChange = onCheckedChange,
+                onCheckedChange = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onCheckedChange(it)
+                },
                 enabled = enabled,
                 thumbContent = if (isChecked) {
                     {

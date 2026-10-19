@@ -33,7 +33,7 @@ fun FeaturesScreen(
     // Root can be granted, or a module installed, while the app is backgrounded,
     // so re-probe on resume or the stale result leaves everything greyed out.
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner.lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) viewModel.onAppForegrounded()
         }
@@ -135,10 +135,52 @@ fun FeaturesScreen(
                 enabled = uiState.features.isSupported(TuningFeature.TOUCH_BOOST)
             )
 
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 5.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "Touch Sensitivity & Response Rate",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        val levels = listOf("Normal", "Gaming", "Sensitive", "Ultra")
+                        levels.forEachIndexed { index, name ->
+                            SegmentedButton(
+                                selected = uiState.features.touchSensitivity == index,
+                                onClick = { viewModel.setTouchSensitivity(index) },
+                                enabled = uiState.features.isSupported(TuningFeature.TOUCH_SENSITIVITY),
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = levels.size)
+                            ) {
+                                Text(name, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
             // 2. Battery & Direct Bypass
             SectionHeader(
                 title = "Smart Battery & Bypass Charging",
                 subtitle = "Direct hardware bypass & battery longevity ceilings"
+            )
+
+            FeatureSwitchCard(
+                title = "18W Fast Charging",
+                description = "Enables hardware fast charging negotiation on AC chargers (/proc/perfmgr/fast_charge)",
+                isChecked = uiState.features.fastChargeEnabled,
+                onCheckedChange = { viewModel.toggleFastCharge(it) },
+                icon = Icons.Default.FlashOn,
+                enabled = uiState.features.isSupported(TuningFeature.FAST_CHARGE)
             )
 
             FeatureSwitchCard(
@@ -160,6 +202,23 @@ fun FeaturesScreen(
                 onValueChange = { viewModel.setChargeLimit(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.CHARGE_LIMIT)
             )
+
+            // Quick preset chips for Charge Limit
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(65, 80, 90, 100).forEach { preset ->
+                    FilterChip(
+                        selected = uiState.features.chargeLimitPercent == preset,
+                        onClick = { viewModel.setChargeLimit(preset) },
+                        label = { Text("${preset}% Cap", style = MaterialTheme.typography.labelSmall) },
+                        enabled = uiState.features.isSupported(TuningFeature.CHARGE_LIMIT)
+                    )
+                }
+            }
 
             FeatureSwitchCard(
                 title = "Hardware Thermal Guard",
@@ -230,10 +289,10 @@ fun FeaturesScreen(
                 }
             }
 
-            // 4. Display, Touch & Vibrator
+            // 4. Display, Touch, Audio & Haptics
             SectionHeader(
-                title = "Display, Touch & Haptics",
-                subtitle = "Calibrated D65 display, wake gestures & tactile feedback"
+                title = "Display, Touch, Audio & Haptics",
+                subtitle = "Calibrated color profiles, audio amplifier boost & tactile feedback"
             )
 
             FeatureSwitchCard(
@@ -247,11 +306,108 @@ fun FeaturesScreen(
 
             FeatureSwitchCard(
                 title = "True Tone Liquid Retina D65",
-                description = "Calibrated D65 color balance reference profile for begonia LCD",
+                description = "Calibrated D65 color balance reference profile for begonia LCD (/proc/perfmgr/true_tone)",
                 isChecked = uiState.features.trueToneDisplay,
                 onCheckedChange = { viewModel.toggleTrueTone(it) },
                 icon = Icons.Default.Palette,
                 enabled = uiState.features.isSupported(TuningFeature.TRUE_TONE)
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 5.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "Display Color Profile",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        val profiles = listOf("Standard", "D65 Ref", "Vivid", "SLog3")
+                        profiles.forEachIndexed { index, name ->
+                            SegmentedButton(
+                                selected = uiState.features.colorMode == index,
+                                onClick = { viewModel.setColorMode(index) },
+                                enabled = uiState.features.isSupported(TuningFeature.COLOR_MODE),
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = profiles.size)
+                            ) {
+                                Text(name, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 5.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "High Brightness Mode (HBM)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        val hbmLevels = listOf("Off", "L1 Boost", "L2 High", "L3 Peak")
+                        hbmLevels.forEachIndexed { index, name ->
+                            SegmentedButton(
+                                selected = uiState.features.hbmMode == index,
+                                onClick = { viewModel.setHbmMode(index) },
+                                enabled = uiState.features.isSupported(TuningFeature.HBM_MODE),
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = hbmLevels.size)
+                            ) {
+                                Text(name, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            }
+
+            FeatureSliderCard(
+                title = "Headphone Analog Gain",
+                valueLabel = "+${uiState.features.headphoneGainDb} dB",
+                description = "Hardware audio amplifier gain boost for 3.5mm analog output (/proc/perfmgr/headphone_gain)",
+                value = uiState.features.headphoneGainDb.toFloat(),
+                valueRange = 0f..8f,
+                steps = 7,
+                onValueChange = { viewModel.setHeadphoneGain(it.toInt()) },
+                enabled = uiState.features.isSupported(TuningFeature.HEADPHONE_GAIN)
+            )
+
+            FeatureSliderCard(
+                title = "Microphone Analog Gain",
+                valueLabel = "Level ${uiState.features.micGainLevel}",
+                description = "Direct hardware microphone input sensitivity boost (/proc/perfmgr/mic_gain)",
+                value = uiState.features.micGainLevel.toFloat(),
+                valueRange = 0f..4f,
+                steps = 3,
+                onValueChange = { viewModel.setMicGain(it.toInt()) },
+                enabled = uiState.features.isSupported(TuningFeature.MIC_GAIN)
+            )
+
+            FeatureSwitchCard(
+                title = "Wakelock Blocker",
+                description = "Aggressive kernel wakelock filter preventing rogue apps from keeping CPU awake in deep sleep",
+                isChecked = uiState.features.wakelockBlockerEnabled,
+                onCheckedChange = { viewModel.toggleWakelockBlocker(it) },
+                icon = Icons.Default.Bedtime,
+                enabled = uiState.features.isSupported(TuningFeature.WAKELOCK_BLOCKER)
             )
 
             FeatureSliderCard(
@@ -260,7 +416,7 @@ fun FeaturesScreen(
                 description = "Unlocked 3.3V analog haptic motor voltage driving range",
                 value = uiState.features.vibratorStrengthPercent.toFloat(),
                 valueRange = 0f..100f,
-                steps = 19,
+                steps = 13,
                 onValueChange = { viewModel.setVibratorStrength(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.VIBRATOR_STRENGTH)
             )

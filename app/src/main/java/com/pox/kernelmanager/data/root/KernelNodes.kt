@@ -85,11 +85,10 @@ object KernelNodes {
     const val PERF_IOCTL = "/proc/perfmgr/perf_ioctl"
     const val EARA_IOCTL = "/proc/perfmgr/eara_ioctl"
 
-    // ---- Standard Linux & Begonia nodes that do exist ----
-
     const val GAMING_MODE_PROC = "/proc/perfmgr/gaming_mode"
     const val GAMING_MODE_SYS = "/sys/kernel/gaming_mode"
 
+    const val FAST_CHARGE_PROC = "/proc/perfmgr/fast_charge"
     const val BATTERY_BYPASS_PROC = "/proc/perfmgr/battery_bypass"
     const val BATTERY_BYPASS_SYS = "/sys/kernel/battery_protection/bypass_mode"
     const val BATTERY_CHARGING_ENABLED = "/sys/class/power_supply/battery/charging_enabled"
@@ -97,19 +96,32 @@ object KernelNodes {
     const val BATTERY_LIMIT_PROC = "/proc/perfmgr/battery_limit"
     const val BATTERY_LIMIT_SYS = "/sys/kernel/battery_protection/charge_limit"
     const val BATTERY_CHARGE_CONTROL_LIMIT = "/sys/class/power_supply/battery/charge_control_limit"
+    const val BATTERY_STATUS_PROC = "/proc/perfmgr/battery_status"
+    const val BATTERY_STATUS_SYS = "/sys/kernel/battery_protection/status"
 
     const val THERMAL_GUARD_SYS = "/sys/kernel/battery_protection/thermal_guard"
     const val TEMP_LIMIT_SYS = "/sys/kernel/battery_protection/temp_limit"
 
+    const val TOUCH_GAME_MODE_PROC = "/proc/perfmgr/touch_game_mode"
+    const val TOUCH_SENSITIVITY_PROC = "/proc/perfmgr/touch_sensitivity"
+
+    const val HEADPHONE_GAIN_PROC = "/proc/perfmgr/headphone_gain"
+    const val MIC_GAIN_PROC = "/proc/perfmgr/mic_gain"
+
+    const val WAKELOCK_BLOCKER_PROC = "/proc/perfmgr/wakelock_blocker"
     const val DT2W_PROC = "/proc/perfmgr/dt2w"
     const val TRUE_TONE_PROC = "/proc/perfmgr/true_tone"
     const val TRUE_TONE_SYS = "/sys/kernel/true_tone"
+    const val COLOR_MODE_PROC = "/proc/perfmgr/color_mode"
+    const val HBM_MODE_PROC = "/proc/perfmgr/hbm_mode"
+    const val TORCH_BRIGHTNESS_PROC = "/proc/perfmgr/torch_brightness"
 
     const val VIBRATOR_STRENGTH_PROC = "/proc/perfmgr/vibrator_strength"
     const val VIBRATOR_VMAX = "/sys/devices/platform/odm/odm:vibrator@0/leds/vibrator/vmax"
 
     const val DYNAMIC_FSYNC_PROC = "/proc/perfmgr/dynamic_fsync"
     const val DYNAMIC_FSYNC_SYS = "/sys/kernel/dynamic_fsync/dynamic_fsync"
+    const val PROFILE_PROC = "/proc/perfmgr/profile"
 
     /**
      * Stock zram statistics.
@@ -180,24 +192,34 @@ object KernelNodes {
     fun probedNodes(): List<String> = listOf(
         GAMING_MODE_PROC,
         GAMING_MODE_SYS,
-        BOOST_FG,
-        USRTCH,
+        FAST_CHARGE_PROC,
         BATTERY_BYPASS_PROC,
         BATTERY_BYPASS_SYS,
         BATTERY_LIMIT_PROC,
         BATTERY_LIMIT_SYS,
+        BATTERY_STATUS_PROC,
         THERMAL_GUARD_SYS,
         TEMP_LIMIT_SYS,
+        TOUCH_GAME_MODE_PROC,
+        TOUCH_SENSITIVITY_PROC,
+        HEADPHONE_GAIN_PROC,
+        MIC_GAIN_PROC,
+        WAKELOCK_BLOCKER_PROC,
         DT2W_PROC,
         TRUE_TONE_PROC,
         TRUE_TONE_SYS,
+        COLOR_MODE_PROC,
+        HBM_MODE_PROC,
+        TORCH_BRIGHTNESS_PROC,
         VIBRATOR_STRENGTH_PROC,
         DYNAMIC_FSYNC_PROC,
         DYNAMIC_FSYNC_SYS,
+        BOOST_FG,
+        USRTCH,
         FPS_144,
         FPS_FORCE_DISABLE,
         PERF_IOCTL,
-        "/proc/perfmgr/profile",
+        PROFILE_PROC,
         "/dev/memcg/memory.xswapd.enable",
         "/sys/block/zram0/disksize",
         "/sys/block/zram0/mm_stat"
@@ -250,19 +272,26 @@ object KernelNodes {
 
         val writable: suspend (String) -> Boolean = { ShellUtils.nodeExists(it) }
 
-        val touchBoost = writable(USRTCH) || writable("/proc/perfmgr/tchbst/kernel/tb_enable")
+        val touchBoost = writable(TOUCH_GAME_MODE_PROC) || writable(USRTCH) || writable("/proc/perfmgr/tchbst/kernel/tb_enable")
+        val touchSensitivity = writable(TOUCH_SENSITIVITY_PROC)
         val perfBoost = writable(GAMING_MODE_PROC) || writable(GAMING_MODE_SYS) || writable(BOOST_FG)
         val fpsCap = writable(FPS_144)
 
         val dynFsync = writable(DYNAMIC_FSYNC_PROC) || writable(DYNAMIC_FSYNC_SYS)
         val xswapd = writable("/dev/memcg/memory.xswapd.enable")
 
+        val fastCharge = writable(FAST_CHARGE_PROC)
         val bypassCharging = writable(BATTERY_BYPASS_PROC) || writable(BATTERY_BYPASS_SYS) || writable(BATTERY_CHARGING_ENABLED)
         val chargeLimit = writable(BATTERY_LIMIT_PROC) || writable(BATTERY_LIMIT_SYS) || writable(BATTERY_CHARGE_CONTROL_LIMIT)
         val thermalGuard = writable(THERMAL_GUARD_SYS)
         val dt2w = writable(DT2W_PROC)
         val trueTone = writable(TRUE_TONE_PROC) || writable(TRUE_TONE_SYS)
+        val colorMode = writable(COLOR_MODE_PROC)
+        val hbmMode = writable(HBM_MODE_PROC)
+        val headphoneGain = writable(HEADPHONE_GAIN_PROC)
+        val micGain = writable(MIC_GAIN_PROC)
         val vibrator = writable(VIBRATOR_STRENGTH_PROC) || writable(VIBRATOR_VMAX)
+        val wakelockBlocker = writable(WAKELOCK_BLOCKER_PROC)
 
         var blockQueue: String? = null
         for (queue in blockDevices()) {
@@ -281,18 +310,25 @@ object KernelNodes {
         }
 
         return mapOf(
-            TuningFeature.GAMING_MODE to (perfBoost && touchBoost),
+            TuningFeature.GAMING_MODE to (perfBoost || touchBoost),
             TuningFeature.TOUCH_BOOST to touchBoost,
+            TuningFeature.TOUCH_SENSITIVITY to touchSensitivity,
             TuningFeature.FPS_CAP to fpsCap,
             TuningFeature.DYNAMIC_FSYNC to dynFsync,
             TuningFeature.XSWAPD to xswapd,
 
+            TuningFeature.FAST_CHARGE to fastCharge,
             TuningFeature.BYPASS_CHARGING to bypassCharging,
             TuningFeature.CHARGE_LIMIT to chargeLimit,
             TuningFeature.THERMAL_GUARD to thermalGuard,
             TuningFeature.DT2W to dt2w,
             TuningFeature.TRUE_TONE to trueTone,
+            TuningFeature.COLOR_MODE to colorMode,
+            TuningFeature.HBM_MODE to hbmMode,
+            TuningFeature.HEADPHONE_GAIN to headphoneGain,
+            TuningFeature.MIC_GAIN to micGain,
             TuningFeature.VIBRATOR_STRENGTH to vibrator,
+            TuningFeature.WAKELOCK_BLOCKER to wakelockBlocker,
 
             TuningFeature.READ_AHEAD to (blockQueue != null),
             TuningFeature.IO_SCHEDULER to (blockQueue != null),

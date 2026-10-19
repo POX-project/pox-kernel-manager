@@ -25,5 +25,14 @@ data class HardwareStats(
     val batteryWattageW: Float = 0f,
     val batteryTempC: Float = 0f,
     val batteryStatus: String = "Discharging",
-    val isBypassActive: Boolean = false
+    val isBypassActive: Boolean = false,
+    val chargerSource: String = "Battery",
+    val isCharging: Boolean = false,
+    val isFastCharging: Boolean = false,
+    val batteryHealth: String = "Good",
+    val batteryTechnology: String = "Li-poly",
+    val chargeLimitPercent: Int = 100,
+    val designCapacityMah: Int = 4500,
+    val estimatedCapacityMah: Int = 4385,
+    val chargeRateMaPerHr: Int = 0
 )
