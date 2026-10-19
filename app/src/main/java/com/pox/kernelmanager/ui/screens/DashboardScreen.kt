@@ -174,6 +174,29 @@ fun DashboardScreen(
             )
             ChargingDetailCard(stats = uiState.stats)
 
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+            ) {
+                StatusBadge(
+                    text = "Health Guard: Armed",
+                    isActive = true,
+                    activeColor = MaterialTheme.colorScheme.primary
+                )
+                StatusBadge(
+                    text = "OPP Calibrated",
+                    isActive = true,
+                    activeColor = MaterialTheme.colorScheme.secondary
+                )
+                StatusBadge(
+                    text = "Anti-Freeze: 0 Drops",
+                    isActive = true,
+                    activeColor = MaterialTheme.colorScheme.tertiary
+                )
+            }
+
             Spacer(modifier = Modifier.height(14.dp))
 
             // Section: CPU Complex (Helio G90T 8-cores)

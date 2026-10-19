@@ -17,6 +17,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pox.kernelmanager.data.model.TuningFeature
 import com.pox.kernelmanager.data.model.GamingModeLevel
+import com.pox.kernelmanager.data.model.KprofilesLevel
+import com.pox.kernelmanager.data.model.HealthCalibrationMode
 import com.pox.kernelmanager.ui.components.*
 import com.pox.kernelmanager.ui.viewmodel.FeaturesViewModel
 
@@ -70,10 +72,84 @@ fun FeaturesScreen(
                 providerLabel = uiState.features.rootProviderLabel
             )
 
-            // 1. Gaming Mode & KProfiles
+            // 1. Kprofiles & Gaming Governor
             SectionHeader(
-                title = "Gaming & Performance Governor",
-                subtitle = "MediaTek perfmgr EAS boost + FPSGO touch boost"
+                title = "Kprofiles & Gaming Performance Governor",
+                subtitle = "In-kernel profile modes (/sys/kernel/kprofiles/kp_mode) & MediaTek perfmgr"
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 5.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Kprofiles Mode (kp_mode)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = "Mode ${uiState.features.kprofilesMode.value}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        KprofilesLevel.entries.forEachIndexed { index, level ->
+                            SegmentedButton(
+                                selected = uiState.features.kprofilesMode == level,
+                                onClick = { viewModel.setKprofilesMode(level) },
+                                enabled = uiState.features.isSupported(TuningFeature.KPROFILES) || uiState.features.isSupported(TuningFeature.GAMING_MODE),
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = KprofilesLevel.entries.size)
+                            ) {
+                                Text(
+                                    text = when (level) {
+                                        KprofilesLevel.DISABLED -> "None"
+                                        KprofilesLevel.BATTERY -> "Battery"
+                                        KprofilesLevel.BALANCED -> "Balanced"
+                                        KprofilesLevel.PERFORMANCE -> "Perf"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = uiState.features.kprofilesMode.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            FeatureSwitchCard(
+                title = "Auto-KP Screen-Off Saver",
+                description = "Automatically forces Battery profile (Mode 1) on screen lock and restores profile upon display wake (/sys/kernel/kprofiles/auto_kp)",
+                isChecked = uiState.features.autoKpEnabled,
+                onCheckedChange = { viewModel.setAutoKp(it) },
+                icon = Icons.Default.BrightnessAuto,
+                enabled = uiState.features.isSupported(TuningFeature.KPROFILES) || uiState.features.isSupported(TuningFeature.GAMING_MODE)
             )
 
             Card(
@@ -87,7 +163,7 @@ fun FeaturesScreen(
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text(
-                        text = "Active Performance Profile",
+                        text = "Active POX Gaming Level",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -133,6 +209,99 @@ fun FeaturesScreen(
                 onCheckedChange = { viewModel.setTouchBoost(it) },
                 icon = Icons.Default.TouchApp,
                 enabled = uiState.features.isSupported(TuningFeature.TOUCH_BOOST)
+            )
+
+            // 2. Phone Health & Silicon Table Calibration
+            SectionHeader(
+                title = "Phone Health & Silicon Table Calibration",
+                subtitle = "Battery degradation adaptation, zero-brownout OPP guard & anti-freeze watchdog"
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 5.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Silicon Health Calibration Mode",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Icon(
+                            imageVector = Icons.Default.HealthAndSafety,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Dynamic OPP voltage droop compensation: calibrates big-core frequency ceilings to real battery internal resistance and temperature to eliminate voltage sags and PMIC UVLO panics.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        HealthCalibrationMode.entries.forEachIndexed { index, mode ->
+                            SegmentedButton(
+                                selected = uiState.features.healthCalibrationMode == mode,
+                                onClick = { viewModel.setHealthCalibrationMode(mode) },
+                                enabled = uiState.features.isSupported(TuningFeature.PHONE_HEALTH_CALIBRATION) || uiState.features.isSupported(TuningFeature.GAMING_MODE),
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = HealthCalibrationMode.entries.size)
+                            ) {
+                                Text(
+                                    text = when (mode) {
+                                        HealthCalibrationMode.DISABLED -> "Off"
+                                        HealthCalibrationMode.AUTO_ADAPTIVE -> "Adaptive"
+                                        HealthCalibrationMode.PERF_GUARD -> "Guard"
+                                        HealthCalibrationMode.LONGEVITY -> "Longevity"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = uiState.features.healthCalibrationMode.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = uiState.features.healthStatusSummary,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+            }
+
+            FeatureSwitchCard(
+                title = "OPP Voltage Brownout Guard & Anti-Freeze",
+                description = "Prevents Cortex-A76 big core voltage collapse on degraded or low cells, elevating Little A55 schedutil up-ramp to guarantee 0 UI freezes",
+                isChecked = uiState.features.oppVoltageGuard,
+                onCheckedChange = { viewModel.setOppVoltageGuard(it) },
+                icon = Icons.Default.Shield,
+                enabled = uiState.features.isSupported(TuningFeature.PHONE_HEALTH_CALIBRATION) || uiState.features.isSupported(TuningFeature.GAMING_MODE)
             )
 
             Card(
@@ -321,10 +490,30 @@ fun FeaturesScreen(
                 enabled = uiState.features.isSupported(TuningFeature.TTL_64)
             )
 
-            // 5. Advanced Kernel Scheduler & Energy
+            // 5. Advanced Kernel Scheduler & BORE
             SectionHeader(
-                title = "Advanced Kernel Scheduler & Energy",
-                subtitle = "Workqueue power clustering, WALT tracking & C-state awareness"
+                title = "Advanced Kernel Scheduler & BORE",
+                subtitle = "BORE burst response, WALT tracking & C-state awareness"
+            )
+
+            FeatureSwitchCard(
+                title = "BORE Burst Response Enhancer",
+                description = "Tracks task burst execution time across sleeps/yields, penalizing CPU-bound background hogs to guarantee zero frame drops on UI threads (kernel.sched_bore)",
+                isChecked = uiState.features.schedBoreEnabled,
+                onCheckedChange = { viewModel.setSchedBore(it) },
+                icon = Icons.Default.Bolt,
+                enabled = uiState.features.isSupported(TuningFeature.BORE_SCHEDULER) || uiState.features.rootGranted
+            )
+
+            FeatureSliderCard(
+                title = "BORE Burst Penalty Scale",
+                valueLabel = "${uiState.features.schedBurstPenaltyScale}",
+                description = "Penalty multiplier (0-4095, default 1536) governing how rapidly continuous background tasks lose priority",
+                value = uiState.features.schedBurstPenaltyScale.toFloat(),
+                valueRange = 0f..4095f,
+                steps = 15,
+                onValueChange = { viewModel.setSchedBurstPenaltyScale(it.toInt()) },
+                enabled = uiState.features.isSupported(TuningFeature.BORE_SCHEDULER) || uiState.features.rootGranted
             )
 
             FeatureSwitchCard(

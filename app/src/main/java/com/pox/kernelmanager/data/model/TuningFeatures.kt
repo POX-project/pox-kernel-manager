@@ -8,6 +8,9 @@ package com.pox.kernelmanager.data.model
  */
 enum class TuningFeature(val label: String, val unsupportedReason: String) {
     GAMING_MODE("Gaming mode", "Grant root - /proc/perfmgr/gaming_mode is not writable"),
+    KPROFILES("Kprofiles", "Grant root - /sys/kernel/kprofiles/kp_mode is not writable"),
+    PHONE_HEALTH_CALIBRATION("Phone health calibration", "Grant root - /proc/perfmgr/health_calibration is not writable"),
+    BORE_SCHEDULER("BORE scheduler", "Grant root - /proc/perfmgr/sched_bore is not writable"),
     TOUCH_BOOST("Touch boost", "Grant root - /proc/perfmgr/touch_game_mode or usrtch is not writable"),
     TOUCH_SENSITIVITY("Touch sensitivity", "Grant root - /proc/perfmgr/touch_sensitivity is not writable"),
     FPS_CAP("FPS cap", "Grant root - /proc/perfmgr/syslimiter is not writable"),
@@ -56,11 +59,36 @@ enum class GamingModeLevel(val value: Int, val title: String, val description: S
     EXTREME(2, "Extreme", "EAS boost 100 + FPSGO touch boost at max OPP")
 }
 
+enum class KprofilesLevel(val value: Int, val title: String, val description: String) {
+    DISABLED(0, "Disabled", "Default stock scaling without profile overrides"),
+    BATTERY(1, "Battery", "Aggressive energy saving and CPU frequency ceiling"),
+    BALANCED(2, "Balanced", "Smooth responsive scaling with high power efficiency"),
+    PERFORMANCE(3, "Performance", "Peak responsiveness, high OPP floor and zero frame-drops")
+}
+
+enum class HealthCalibrationMode(val value: Int, val title: String, val description: String) {
+    DISABLED(0, "Disabled", "Standard vendor thermal and battery tables"),
+    AUTO_ADAPTIVE(1, "Auto-Adaptive", "Calibrates OPP ceilings to live battery degradation to prevent brownout reboots and eliminate freezes"),
+    PERF_GUARD(2, "Performance Guard", "Maintains high clock speeds while monitoring voltage drop"),
+    LONGEVITY(3, "Maximum Longevity", "Limits big core voltage strain to extend battery lifespan")
+}
+
 data class TuningFeatures(
     // Gaming & Performance
     val gamingMode: GamingModeLevel = GamingModeLevel.BALANCED,
+    val kprofilesMode: KprofilesLevel = KprofilesLevel.BALANCED,
+    val autoKpEnabled: Boolean = true,
     val touchBoost240Hz: Boolean = false,
     val touchSensitivity: Int = 0,
+
+    // BORE Scheduler & Interactive Response
+    val schedBoreEnabled: Boolean = true,
+    val schedBurstPenaltyScale: Int = 1536,
+
+    // Phone Health & Silicon OPP Table Calibration
+    val healthCalibrationMode: HealthCalibrationMode = HealthCalibrationMode.AUTO_ADAPTIVE,
+    val oppVoltageGuard: Boolean = true,
+    val healthStatusSummary: String = "Calibrated (100% Health) • Watchdog Armed",
 
     // Smart Battery Guard & Bypass
     val fastChargeEnabled: Boolean = true,

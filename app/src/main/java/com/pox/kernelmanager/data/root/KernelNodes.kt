@@ -87,6 +87,18 @@ object KernelNodes {
 
     const val GAMING_MODE_PROC = "/proc/perfmgr/gaming_mode"
     const val GAMING_MODE_SYS = "/sys/kernel/gaming_mode"
+    const val KPROFILES_MODE = "/sys/kernel/kprofiles/kp_mode"
+    const val KPROFILES_AUTO = "/sys/kernel/kprofiles/auto_kp"
+
+    const val HEALTH_CALIBRATION_PROC = "/proc/perfmgr/health_calibration"
+    const val HEALTH_CALIBRATION_SYS = "/sys/kernel/health_calibration"
+    const val HEALTH_STATUS_PROC = "/proc/perfmgr/health_status"
+
+    const val SCHED_BORE_PROC = "/proc/perfmgr/sched_bore"
+    const val SCHED_BORE_SYS = "/sys/kernel/sched_bore"
+    const val SCHED_BORE_SYSCTL = "/proc/sys/kernel/sched_bore"
+    const val SCHED_BURST_PENALTY_SCALE = "/proc/sys/kernel/sched_burst_penalty_scale"
+    const val SCHED_BURST_CACHE_LIFETIME = "/proc/sys/kernel/sched_burst_cache_lifetime"
 
     const val FAST_CHARGE_PROC = "/proc/perfmgr/fast_charge"
     const val BATTERY_BYPASS_PROC = "/proc/perfmgr/battery_bypass"
@@ -335,6 +347,10 @@ object KernelNodes {
         val cstate = writable(SCHED_CSTATE_AWARE)
         val swappiness = writable(VM_SWAPPINESS)
 
+        val kprofiles = writable(KPROFILES_MODE) || writable(GAMING_MODE_PROC) || writable(GAMING_MODE_SYS)
+        val healthCalibration = writable(HEALTH_CALIBRATION_PROC) || writable(HEALTH_CALIBRATION_SYS) || writable(HEALTH_STATUS_PROC)
+        val schedBore = writable(SCHED_BORE_PROC) || writable(SCHED_BORE_SYS) || writable(SCHED_BORE_SYSCTL)
+
         var blockQueue: String? = null
         for (queue in blockDevices()) {
             if (writable("$queue/queue/read_ahead_kb")) {
@@ -353,6 +369,9 @@ object KernelNodes {
 
         return mapOf(
             TuningFeature.GAMING_MODE to (perfBoost || touchBoost),
+            TuningFeature.KPROFILES to kprofiles,
+            TuningFeature.PHONE_HEALTH_CALIBRATION to healthCalibration,
+            TuningFeature.BORE_SCHEDULER to schedBore,
             TuningFeature.TOUCH_BOOST to touchBoost,
             TuningFeature.TOUCH_SENSITIVITY to touchSensitivity,
             TuningFeature.FPS_CAP to fpsCap,

@@ -3,6 +3,8 @@ package com.pox.kernelmanager.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pox.kernelmanager.data.model.GamingModeLevel
+import com.pox.kernelmanager.data.model.KprofilesLevel
+import com.pox.kernelmanager.data.model.HealthCalibrationMode
 import com.pox.kernelmanager.data.model.TuningFeature
 import com.pox.kernelmanager.data.model.TuningFeatures
 import com.pox.kernelmanager.data.repo.TuningRepository
@@ -67,7 +69,21 @@ class FeaturesViewModel : ViewModel() {
 
     fun setGamingMode(level: GamingModeLevel) = apply { TuningRepository.setGamingMode(level) }
 
-fun setTouchBoost(enable: Boolean) = apply { TuningRepository.setTouchBoost(enable) }
+    fun setKprofilesMode(level: KprofilesLevel) = apply { TuningRepository.setKprofilesMode(level) }
+
+    fun setAutoKp(enable: Boolean) = apply { TuningRepository.setAutoKp(enable) }
+
+    fun setHealthCalibrationMode(mode: HealthCalibrationMode) =
+        apply { TuningRepository.setHealthCalibrationMode(mode) }
+
+    fun setOppVoltageGuard(enable: Boolean) = apply { TuningRepository.setOppVoltageGuard(enable) }
+
+    fun setSchedBore(enable: Boolean) = apply { TuningRepository.setSchedBore(enable) }
+
+    fun setSchedBurstPenaltyScale(scale: Int) =
+        apply { TuningRepository.setSchedBurstPenaltyScale(scale) }
+
+    fun setTouchBoost(enable: Boolean) = apply { TuningRepository.setTouchBoost(enable) }
 
 fun setFpsCap(fps: Int) = apply { TuningRepository.setFpsCap(fps) }
 
