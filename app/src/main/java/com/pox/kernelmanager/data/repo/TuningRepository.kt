@@ -151,6 +151,14 @@ object TuningRepository {
             ShellUtils.fastRead(KernelNodes.SCHED_BURST_PENALTY_SCALE)?.trim()?.toIntOrNull() ?: 1536
         } else prefs.getInt("sched_burst_penalty_scale", 1536)
 
+        val burstPenaltyOffset = if (isRoot) {
+            ShellUtils.fastRead(KernelNodes.SCHED_BURST_PENALTY_OFFSET)?.trim()?.toIntOrNull() ?: 24
+        } else prefs.getInt("sched_burst_penalty_offset", 24)
+
+        val burstInheritType = if (isRoot) {
+            ShellUtils.fastRead(KernelNodes.SCHED_BURST_INHERIT_TYPE)?.trim()?.toIntOrNull() ?: 2
+        } else prefs.getInt("sched_burst_inherit_type", 2)
+
         val touchBoost = if (isRoot) {
             ShellUtils.fastRead(KernelNodes.TOUCH_GAME_MODE_PROC) == "1" ||
             KernelNodes.parseUsrtchField(
@@ -254,6 +262,12 @@ object TuningRepository {
             ShellUtils.fastRead(KernelNodes.DYNAMIC_FSYNC_SYS) == "1"
         } else prefs.getBoolean("dynamic_fsync", false)
 
+        val driveDroid = if (isRoot && isSupported(TuningFeature.DRIVEDROID)) {
+            ShellUtils.fastRead(KernelNodes.DRIVEDROID_CDROM_PROC) == "1" ||
+            ShellUtils.fastRead(KernelNodes.DRIVEDROID_CDROM_SYS) == "1" ||
+            ShellUtils.fastRead(KernelNodes.DRIVEDROID_LUN0_SYS) == "1"
+        } else prefs.getBoolean("drivedroid_cdrom", false)
+
         val readAhead = if (isRoot) {
             blockQueues().firstNotNullOfOrNull { ShellUtils.readNode("$it/read_ahead_kb") }?.toIntOrNull()
                 ?: prefs.getInt("read_ahead_kb", 256)
@@ -331,6 +345,8 @@ object TuningRepository {
             autoKpEnabled = autoKp,
             schedBoreEnabled = schedBore,
             schedBurstPenaltyScale = burstPenalty,
+            schedBurstPenaltyOffset = burstPenaltyOffset,
+            schedBurstInheritType = burstInheritType,
             healthCalibrationMode = healthCalMode,
             oppVoltageGuard = oppGuard,
             healthStatusSummary = healthSummary,
@@ -353,6 +369,7 @@ object TuningRepository {
             activeMicMode = activeMic,
             wakelockBlockerEnabled = wakelock,
             dynamicFsync = fsync,
+            driveDroidCdrom = driveDroid,
             readAheadKb = readAhead,
             camera4k60Enabled = camera4k60,
             slog3Enabled = slog3,
@@ -476,6 +493,33 @@ object TuningRepository {
         applyKernelWrites(
             successLabel = "BORE burst penalty scale set to $clamped",
             KernelNodes.SCHED_BURST_PENALTY_SCALE to clamped.toString()
+        )
+    }
+
+    suspend fun setSchedBurstPenaltyOffset(offset: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = offset.coerceIn(0, 64)
+        prefs.edit().putInt("sched_burst_penalty_offset", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("BORE penalty offset")
+        applyKernelWrites(
+            successLabel = "BORE burst penalty offset set to $clamped",
+            KernelNodes.SCHED_BURST_PENALTY_OFFSET to clamped.toString(),
+            KernelNodes.SCHED_BORE_PROC to "offset=$clamped"
+        )
+    }
+
+    suspend fun setSchedBurstInheritType(type: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = type.coerceIn(0, 2)
+        prefs.edit().putInt("sched_burst_inherit_type", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("BORE inherit type")
+        val label = when (clamped) {
+            0 -> "Disabled (0)"
+            1 -> "Parent Priority (1)"
+            else -> "Topological Tree (2)"
+        }
+        applyKernelWrites(
+            successLabel = "BORE inherit type set to $label",
+            KernelNodes.SCHED_BURST_INHERIT_TYPE to clamped.toString(),
+            KernelNodes.SCHED_BORE_PROC to "inherit=$clamped"
         )
     }
 
@@ -876,6 +920,19 @@ object TuningRepository {
             successLabel = if (enable) "Dynamic Fsync active" else "Dynamic Fsync disabled",
             KernelNodes.DYNAMIC_FSYNC_PROC to if (enable) "1" else "0",
             KernelNodes.DYNAMIC_FSYNC_SYS to if (enable) "1" else "0"
+        )
+    }
+
+    suspend fun setDriveDroidCdrom(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
+        prefs.edit().putBoolean("drivedroid_cdrom", enable).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("DriveDroid CD-ROM")
+        if (!isSupported(TuningFeature.DRIVEDROID)) return@withContext unsupported(TuningFeature.DRIVEDROID)
+        val v = if (enable) "1" else "0"
+        applyKernelWrites(
+            successLabel = if (enable) "DriveDroid USB CD-ROM emulation enabled" else "DriveDroid USB CD-ROM emulation disabled",
+            KernelNodes.DRIVEDROID_CDROM_PROC to v,
+            KernelNodes.DRIVEDROID_CDROM_SYS to v,
+            KernelNodes.DRIVEDROID_LUN0_SYS to v
         )
     }
 

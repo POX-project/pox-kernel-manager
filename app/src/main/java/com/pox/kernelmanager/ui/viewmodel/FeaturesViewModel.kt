@@ -83,6 +83,12 @@ class FeaturesViewModel : ViewModel() {
     fun setSchedBurstPenaltyScale(scale: Int) =
         apply { TuningRepository.setSchedBurstPenaltyScale(scale) }
 
+    fun setSchedBurstPenaltyOffset(offset: Int) =
+        apply { TuningRepository.setSchedBurstPenaltyOffset(offset) }
+
+    fun setSchedBurstInheritType(type: Int) =
+        apply { TuningRepository.setSchedBurstInheritType(type) }
+
     fun setTouchBoost(enable: Boolean) = apply { TuningRepository.setTouchBoost(enable) }
 
 fun setFpsCap(fps: Int) = apply { TuningRepository.setFpsCap(fps) }
@@ -127,6 +133,8 @@ fun setZramSizeMb(sizeMb: Long) = apply { TuningRepository.setZramSizeMb(sizeMb)
     fun setVibratorStrength(percent: Int) = apply { TuningRepository.setVibratorStrength(percent) }
 
     fun toggleDynamicFsync(enable: Boolean) = apply { TuningRepository.setDynamicFsync(enable) }
+
+    fun toggleDriveDroidCdrom(enable: Boolean) = apply { TuningRepository.setDriveDroidCdrom(enable) }
 
     fun setReadAhead(kb: Int) = apply { TuningRepository.setReadAheadKb(kb) }
 

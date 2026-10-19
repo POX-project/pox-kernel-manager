@@ -45,6 +45,7 @@ enum class TuningFeature(val label: String, val unsupportedReason: String) {
     // Present only on some ROMs or with a module installed.
     XSWAPD("xswapd", "Needs /dev/memcg - MIUI/HyperOS ROMs only"),
     DYNAMIC_FSYNC("Dynamic fsync", "Grant root - /proc/perfmgr/dynamic_fsync is not writable"),
+    DRIVEDROID("DriveDroid USB CD-ROM", "Grant root - /proc/perfmgr/usb_cdrom or LUN cdrom attribute is not writable"),
 
     // Standard Linux interfaces, available on every root solution.
     READ_AHEAD("Read-ahead", "No writable block queue found under /sys/block"),
@@ -84,6 +85,8 @@ data class TuningFeatures(
     // BORE Scheduler & Interactive Response
     val schedBoreEnabled: Boolean = true,
     val schedBurstPenaltyScale: Int = 1536,
+    val schedBurstPenaltyOffset: Int = 24,
+    val schedBurstInheritType: Int = 2,
 
     // Phone Health & Silicon OPP Table Calibration
     val healthCalibrationMode: HealthCalibrationMode = HealthCalibrationMode.AUTO_ADAPTIVE,
@@ -113,6 +116,7 @@ data class TuningFeatures(
     val wakelockBlockerEnabled: Boolean = false,
 
     val dynamicFsync: Boolean = false,
+    val driveDroidCdrom: Boolean = false,
     val readAheadKb: Int = 256,
 
     // Camera & Media Studio

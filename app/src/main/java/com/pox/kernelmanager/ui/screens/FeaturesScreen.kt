@@ -516,6 +516,56 @@ fun FeaturesScreen(
                 enabled = uiState.features.isSupported(TuningFeature.BORE_SCHEDULER) || uiState.features.rootGranted
             )
 
+            FeatureSliderCard(
+                title = "BORE Burst Penalty Offset",
+                valueLabel = "${uiState.features.schedBurstPenaltyOffset}",
+                description = "Baseline burst duration offset before penalty scaling engages (0-64, default 24)",
+                value = uiState.features.schedBurstPenaltyOffset.toFloat(),
+                valueRange = 0f..64f,
+                steps = 15,
+                onValueChange = { viewModel.setSchedBurstPenaltyOffset(it.toInt()) },
+                enabled = uiState.features.isSupported(TuningFeature.BORE_SCHEDULER) || uiState.features.rootGranted
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 5.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "BORE Child Penalty Inheritance",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Controls how newly spawned fork/clone child tasks inherit burst penalties from parent threads (0=None, 1=Parent, 2=Topological Tree)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        val inheritOptions = listOf("None", "Parent", "Tree")
+                        inheritOptions.forEachIndexed { index, name ->
+                            SegmentedButton(
+                                selected = uiState.features.schedBurstInheritType == index,
+                                onClick = { viewModel.setSchedBurstInheritType(index) },
+                                enabled = uiState.features.isSupported(TuningFeature.BORE_SCHEDULER) || uiState.features.rootGranted,
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = inheritOptions.size)
+                            ) {
+                                Text(name, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            }
+
             FeatureSwitchCard(
                 title = "Power-Efficient Workqueues",
                 description = "Groups unbound workqueues to avoid waking idle CPU cores (/sys/module/workqueue/parameters/power_efficient)",
@@ -832,6 +882,17 @@ fun FeaturesScreen(
             )
 
             UnsupportedReason(uiState.features.reasonFor(TuningFeature.DYNAMIC_FSYNC))
+
+            FeatureSwitchCard(
+                title = "DriveDroid USB CD-ROM Emulation",
+                description = "Enables physical SCSI CD-ROM emulation on USB LUN0 to boot live ISO images on PCs via DriveDroid (/proc/perfmgr/usb_cdrom)",
+                isChecked = uiState.features.driveDroidCdrom,
+                onCheckedChange = { viewModel.toggleDriveDroidCdrom(it) },
+                icon = Icons.Default.Album,
+                enabled = uiState.features.isSupported(TuningFeature.DRIVEDROID)
+            )
+
+            UnsupportedReason(uiState.features.reasonFor(TuningFeature.DRIVEDROID))
 
             FeatureSliderCard(
                 title = "UFS Queue Readahead",

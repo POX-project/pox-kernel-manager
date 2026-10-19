@@ -98,6 +98,8 @@ object KernelNodes {
     const val SCHED_BORE_SYS = "/sys/kernel/sched_bore"
     const val SCHED_BORE_SYSCTL = "/proc/sys/kernel/sched_bore"
     const val SCHED_BURST_PENALTY_SCALE = "/proc/sys/kernel/sched_burst_penalty_scale"
+    const val SCHED_BURST_PENALTY_OFFSET = "/sys/kernel/sched_burst_penalty_offset"
+    const val SCHED_BURST_INHERIT_TYPE = "/sys/kernel/sched_burst_inherit_type"
     const val SCHED_BURST_CACHE_LIFETIME = "/proc/sys/kernel/sched_burst_cache_lifetime"
 
     const val FAST_CHARGE_PROC = "/proc/perfmgr/fast_charge"
@@ -153,6 +155,9 @@ object KernelNodes {
 
     const val DYNAMIC_FSYNC_PROC = "/proc/perfmgr/dynamic_fsync"
     const val DYNAMIC_FSYNC_SYS = "/sys/kernel/dynamic_fsync/dynamic_fsync"
+    const val DRIVEDROID_CDROM_PROC = "/proc/perfmgr/usb_cdrom"
+    const val DRIVEDROID_CDROM_SYS = "/sys/kernel/usb_cdrom"
+    const val DRIVEDROID_LUN0_SYS = "/sys/devices/platform/mt_usb/gadget/lun0/cdrom"
     const val PROFILE_PROC = "/proc/perfmgr/profile"
 
     /**
@@ -256,6 +261,11 @@ object KernelNodes {
         VIBRATOR_STRENGTH_PROC,
         DYNAMIC_FSYNC_PROC,
         DYNAMIC_FSYNC_SYS,
+        DRIVEDROID_CDROM_PROC,
+        DRIVEDROID_CDROM_SYS,
+        DRIVEDROID_LUN0_SYS,
+        SCHED_BURST_PENALTY_OFFSET,
+        SCHED_BURST_INHERIT_TYPE,
         BOOST_FG,
         USRTCH,
         FPS_144,
@@ -320,6 +330,7 @@ object KernelNodes {
         val fpsCap = writable(FPS_144)
 
         val dynFsync = writable(DYNAMIC_FSYNC_PROC) || writable(DYNAMIC_FSYNC_SYS)
+        val driveDroid = writable(DRIVEDROID_CDROM_PROC) || writable(DRIVEDROID_CDROM_SYS) || writable(DRIVEDROID_LUN0_SYS)
         val xswapd = writable("/dev/memcg/memory.xswapd.enable")
 
         val fastCharge = writable(FAST_CHARGE_PROC)
@@ -376,6 +387,7 @@ object KernelNodes {
             TuningFeature.TOUCH_SENSITIVITY to touchSensitivity,
             TuningFeature.FPS_CAP to fpsCap,
             TuningFeature.DYNAMIC_FSYNC to dynFsync,
+            TuningFeature.DRIVEDROID to driveDroid,
             TuningFeature.XSWAPD to xswapd,
 
             TuningFeature.FAST_CHARGE to fastCharge,
