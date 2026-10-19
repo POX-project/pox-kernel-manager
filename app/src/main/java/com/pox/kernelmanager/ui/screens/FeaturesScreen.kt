@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.pox.kernelmanager.data.model.CustomColorProfile
+import com.pox.kernelmanager.data.model.CustomKprofile
 import com.pox.kernelmanager.data.model.TuningFeature
 import com.pox.kernelmanager.data.model.GamingModeLevel
 import com.pox.kernelmanager.data.model.KprofilesLevel
@@ -31,6 +33,8 @@ fun FeaturesScreen(
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showCreateKprofileDialog by remember { mutableStateOf(false) }
+    var showCreateColorDialog by remember { mutableStateOf(false) }
 
     // Root can be granted, or a module installed, while the app is backgrounded,
     // so re-probe on resume or the stale result leaves everything greyed out.
@@ -127,6 +131,7 @@ fun FeaturesScreen(
                                         KprofilesLevel.BATTERY -> "Battery"
                                         KprofilesLevel.BALANCED -> "Balanced"
                                         KprofilesLevel.PERFORMANCE -> "Perf"
+                                        KprofilesLevel.CUSTOM -> "Custom"
                                     },
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold
@@ -162,6 +167,145 @@ fun FeaturesScreen(
                 )
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Custom Kprofiles & Presets",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "One-tap user-tailored kernel tuning presets",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        FilledTonalButton(
+                            onClick = { showCreateKprofileDialog = true },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Create", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    uiState.customKprofiles.forEach { profile ->
+                        val isActive = uiState.features.kprofilesMode == KprofilesLevel.CUSTOM &&
+                            uiState.features.activeKprofileId == profile.id
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isActive)
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                else
+                                    MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = profile.name,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (profile.isPreset) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = MaterialTheme.colorScheme.secondaryContainer
+                                            ) {
+                                                Text(
+                                                    text = "PRESET",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontSize = androidx.compose.ui.unit.TextUnit(9f, androidx.compose.ui.unit.TextUnitType.Sp),
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                        if (isActive) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = MaterialTheme.colorScheme.primary
+                                            ) {
+                                                Text(
+                                                    text = "ACTIVE",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onPrimary,
+                                                    fontSize = androidx.compose.ui.unit.TextUnit(9f, androidx.compose.ui.unit.TextUnitType.Sp),
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    if (profile.description.isNotBlank()) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = profile.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (!profile.isPreset) {
+                                        IconButton(
+                                            onClick = { viewModel.deleteCustomKprofile(profile.id) },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = "Delete",
+                                                tint = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                    Button(
+                                        onClick = { viewModel.applyCustomKprofile(profile) },
+                                        enabled = !isActive,
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Text(if (isActive) "Active" else "Apply", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 5.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
                     Text(
                         text = "Active POX Gaming Level",
                         style = MaterialTheme.typography.titleMedium,
@@ -179,6 +323,7 @@ fun FeaturesScreen(
                             ) {
                                 Text(
                                     text = when (level) {
+                                        GamingModeLevel.POWERSAVE -> "Powersave"
                                         GamingModeLevel.BALANCED -> "Balanced"
                                         GamingModeLevel.GAMING -> "Gaming"
                                         GamingModeLevel.EXTREME -> "Extreme"
@@ -713,7 +858,7 @@ fun FeaturesScreen(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        val profiles = listOf("Standard", "D65 Ref", "Vivid", "SLog3")
+                        val profiles = listOf("Standard", "D65 Ref", "Vivid", "SLog3", "Custom")
                         profiles.forEachIndexed { index, name ->
                             SegmentedButton(
                                 selected = uiState.features.colorMode == index,
@@ -722,6 +867,116 @@ fun FeaturesScreen(
                                 shape = SegmentedButtonDefaults.itemShape(index = index, count = profiles.size)
                             ) {
                                 Text(name, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Custom Color Profiles",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Hardware saturation, contrast & tone curve tables",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        FilledTonalButton(
+                            onClick = { showCreateColorDialog = true },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("New", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    uiState.customColorProfiles.forEach { profile ->
+                        val isColorActive = uiState.features.colorMode == 4 &&
+                            uiState.features.activeColorProfileId == profile.id
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isColorActive)
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                else
+                                    MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = profile.name,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (profile.isPreset) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = MaterialTheme.colorScheme.secondaryContainer
+                                            ) {
+                                                Text(
+                                                    text = "PRESET",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontSize = androidx.compose.ui.unit.TextUnit(8f, androidx.compose.ui.unit.TextUnitType.Sp),
+                                                    modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        text = "Sat: ${profile.saturation} | Con: ${profile.contrast} | Bri: ${profile.brightness} | Adj: ${profile.saturationAdjustment}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (!profile.isPreset) {
+                                        IconButton(
+                                            onClick = { viewModel.deleteCustomColorProfile(profile.id) },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = "Delete",
+                                                tint = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    Button(
+                                        onClick = { viewModel.applyCustomColorProfile(profile) },
+                                        enabled = !isColorActive,
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Text(if (isColorActive) "Active" else "Apply", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
                             }
                         }
                     }
@@ -986,4 +1241,264 @@ fun FeaturesScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
+
+    if (showCreateKprofileDialog) {
+        CreateKprofileDialog(
+            onDismiss = { showCreateKprofileDialog = false },
+            onSave = { viewModel.saveCustomKprofile(it) }
+        )
+    }
+
+    if (showCreateColorDialog) {
+        CreateColorProfileDialog(
+            onDismiss = { showCreateColorDialog = false },
+            onSave = { viewModel.saveCustomColorProfile(it) }
+        )
+    }
+}
+
+@Composable
+private fun CreateKprofileDialog(
+    onDismiss: () -> Unit,
+    onSave: (CustomKprofile) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var desc by remember { mutableStateOf("") }
+    var gamingMode by remember { mutableStateOf(GamingModeLevel.BALANCED) }
+    var touchGameMode by remember { mutableStateOf(false) }
+    var touchSensitivity by remember { mutableIntStateOf(0) }
+    var schedBore by remember { mutableStateOf(true) }
+    var schedBurstScale by remember { mutableIntStateOf(1536) }
+    var schedBurstOffset by remember { mutableIntStateOf(24) }
+    var dynamicFsync by remember { mutableStateOf(true) }
+    var fastCharge by remember { mutableStateOf(true) }
+    var healthCalibration by remember { mutableStateOf(HealthCalibrationMode.AUTO_ADAPTIVE) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create Custom Kprofile", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Profile Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = desc,
+                    onValueChange = { desc = it },
+                    label = { Text("Description (Optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                Text("Governor & Gaming Level", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    GamingModeLevel.entries.forEachIndexed { index, level ->
+                        SegmentedButton(
+                            selected = gamingMode == level,
+                            onClick = { gamingMode = level },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = GamingModeLevel.entries.size)
+                        ) {
+                            Text(
+                                text = when (level) {
+                                    GamingModeLevel.POWERSAVE -> "Save"
+                                    GamingModeLevel.BALANCED -> "Bal"
+                                    GamingModeLevel.GAMING -> "Game"
+                                    GamingModeLevel.EXTREME -> "Ext"
+                                },
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("240Hz Touch Gaming Mode", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = touchGameMode, onCheckedChange = { touchGameMode = it })
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Touch Sensitivity: $touchSensitivity", style = MaterialTheme.typography.bodySmall)
+                Slider(
+                    value = touchSensitivity.toFloat(),
+                    onValueChange = { touchSensitivity = it.toInt() },
+                    valueRange = 0f..3f,
+                    steps = 2
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("BORE Scheduler", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = schedBore, onCheckedChange = { schedBore = it })
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Burst Penalty Scale: $schedBurstScale", style = MaterialTheme.typography.bodySmall)
+                Slider(
+                    value = schedBurstScale.toFloat(),
+                    onValueChange = { schedBurstScale = it.toInt() },
+                    valueRange = 0f..4095f
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Dynamic Fsync", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = dynamicFsync, onCheckedChange = { dynamicFsync = it })
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("3.0A Fast Charge", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = fastCharge, onCheckedChange = { fastCharge = it })
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        onSave(
+                            CustomKprofile(
+                                name = name.trim(),
+                                description = desc.trim(),
+                                gamingMode = gamingMode,
+                                touchGameMode = touchGameMode,
+                                touchSensitivity = touchSensitivity,
+                                schedBore = schedBore,
+                                schedBurstPenaltyScale = schedBurstScale,
+                                schedBurstPenaltyOffset = schedBurstOffset,
+                                dynamicFsync = dynamicFsync,
+                                fastCharge = fastCharge,
+                                healthCalibration = healthCalibration
+                            )
+                        )
+                        onDismiss()
+                    }
+                },
+                enabled = name.isNotBlank()
+            ) {
+                Text("Save Profile")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun CreateColorProfileDialog(
+    onDismiss: () -> Unit,
+    onSave: (CustomColorProfile) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var desc by remember { mutableStateOf("") }
+    var sat by remember { mutableIntStateOf(4) }
+    var contrast by remember { mutableIntStateOf(4) }
+    var brightness by remember { mutableIntStateOf(4) }
+    var satAdj by remember { mutableIntStateOf(0) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create Color Profile", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Profile Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = desc,
+                    onValueChange = { desc = it },
+                    label = { Text("Description (Optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                Text("Saturation: $sat", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Slider(
+                    value = sat.toFloat(),
+                    onValueChange = { sat = it.toInt() },
+                    valueRange = 0f..15f,
+                    steps = 14
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Contrast: $contrast", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Slider(
+                    value = contrast.toFloat(),
+                    onValueChange = { contrast = it.toInt() },
+                    valueRange = 0f..15f,
+                    steps = 14
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Brightness: $brightness", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Slider(
+                    value = brightness.toFloat(),
+                    onValueChange = { brightness = it.toInt() },
+                    valueRange = 0f..15f,
+                    steps = 14
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Saturation Adjustment (Tone Curve): $satAdj", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Slider(
+                    value = satAdj.toFloat(),
+                    onValueChange = { satAdj = it.toInt() },
+                    valueRange = 0f..15f,
+                    steps = 14
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        onSave(
+                            CustomColorProfile(
+                                name = name.trim(),
+                                description = desc.trim(),
+                                saturation = sat,
+                                contrast = contrast,
+                                brightness = brightness,
+                                saturationAdjustment = satAdj
+                            )
+                        )
+                        onDismiss()
+                    }
+                },
+                enabled = name.isNotBlank()
+            ) {
+                Text("Save Profile")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

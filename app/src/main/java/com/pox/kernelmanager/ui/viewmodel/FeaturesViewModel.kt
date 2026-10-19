@@ -14,11 +14,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+import com.pox.kernelmanager.data.model.CustomColorProfile
+import com.pox.kernelmanager.data.model.CustomKprofile
+import com.pox.kernelmanager.data.repo.CustomProfilesRepository
+
 data class FeaturesUiState(
     val features: TuningFeatures = TuningFeatures(),
     val isRootGranted: Boolean = false,
     val isLoading: Boolean = true,
-    val feedbackMessage: String? = null
+    val feedbackMessage: String? = null,
+    val customColorProfiles: List<CustomColorProfile> = emptyList(),
+    val customKprofiles: List<CustomKprofile> = emptyList()
 )
 
 class FeaturesViewModel : ViewModel() {
@@ -41,10 +47,14 @@ class FeaturesViewModel : ViewModel() {
             _uiState.value = _uiState.value.copy(isLoading = true)
             val isRoot = ShellUtils.isRootAvailable()
             val feat = TuningRepository.getTuningFeatures()
+            val colorProfiles = CustomProfilesRepository.getColorProfiles()
+            val kprofiles = CustomProfilesRepository.getKprofiles()
             _uiState.value = FeaturesUiState(
                 features = feat,
                 isRootGranted = isRoot,
-                isLoading = false
+                isLoading = false,
+                customColorProfiles = colorProfiles,
+                customKprofiles = kprofiles
             )
         }
     }
@@ -159,6 +169,43 @@ fun setZramSizeMb(sizeMb: Long) = apply { TuningRepository.setZramSizeMb(sizeMb)
     fun setVmSwappiness(value: Int) = apply { TuningRepository.setVmSwappiness(value) }
 
     fun isSupported(feature: TuningFeature): Boolean = _uiState.value.features.isSupported(feature)
+
+    fun applyCustomColorProfile(profile: CustomColorProfile) {
+        apply { CustomProfilesRepository.applyColorProfile(profile) }
+        refreshProfilesList()
+    }
+
+    fun saveCustomColorProfile(profile: CustomColorProfile) {
+        CustomProfilesRepository.saveColorProfile(profile)
+        refreshProfilesList()
+    }
+
+    fun deleteCustomColorProfile(id: String) {
+        CustomProfilesRepository.deleteColorProfile(id)
+        refreshProfilesList()
+    }
+
+    fun applyCustomKprofile(profile: CustomKprofile) {
+        apply { CustomProfilesRepository.applyKprofile(profile) }
+        refreshProfilesList()
+    }
+
+    fun saveCustomKprofile(profile: CustomKprofile) {
+        CustomProfilesRepository.saveKprofile(profile)
+        refreshProfilesList()
+    }
+
+    fun deleteCustomKprofile(id: String) {
+        CustomProfilesRepository.deleteKprofile(id)
+        refreshProfilesList()
+    }
+
+    private fun refreshProfilesList() {
+        _uiState.value = _uiState.value.copy(
+            customColorProfiles = CustomProfilesRepository.getColorProfiles(),
+            customKprofiles = CustomProfilesRepository.getKprofiles()
+        )
+    }
 
     fun clearFeedback() {
         _uiState.value = _uiState.value.copy(feedbackMessage = null)

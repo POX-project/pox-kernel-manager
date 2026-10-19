@@ -55,6 +55,7 @@ enum class TuningFeature(val label: String, val unsupportedReason: String) {
 }
 
 enum class GamingModeLevel(val value: Int, val title: String, val description: String) {
+    POWERSAVE(-1, "Powersave", "Energy efficient governor clamp and battery saver"),
     BALANCED(0, "Balanced", "Standard governor with efficient energy scaling"),
     GAMING(1, "Gaming Mode", "EAS boost 50 + FPSGO touch boost"),
     EXTREME(2, "Extreme", "EAS boost 100 + FPSGO touch boost at max OPP")
@@ -64,7 +65,8 @@ enum class KprofilesLevel(val value: Int, val title: String, val description: St
     DISABLED(0, "Disabled", "Default stock scaling without profile overrides"),
     BATTERY(1, "Battery", "Aggressive energy saving and CPU frequency ceiling"),
     BALANCED(2, "Balanced", "Smooth responsive scaling with high power efficiency"),
-    PERFORMANCE(3, "Performance", "Peak responsiveness, high OPP floor and zero frame-drops")
+    PERFORMANCE(3, "Performance", "Peak responsiveness, high OPP floor and zero frame-drops"),
+    CUSTOM(4, "Custom", "User-defined profile with personalized performance and energy tunables")
 }
 
 enum class HealthCalibrationMode(val value: Int, val title: String, val description: String) {
@@ -73,6 +75,30 @@ enum class HealthCalibrationMode(val value: Int, val title: String, val descript
     PERF_GUARD(2, "Performance Guard", "Maintains high clock speeds while monitoring voltage drop"),
     LONGEVITY(3, "Maximum Longevity", "Limits big core voltage strain to extend battery lifespan")
 }
+
+data class CustomKprofile(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String = "Custom Profile",
+    val schedutilUpLittle: Int = 500,
+    val schedutilDownLittle: Int = 20000,
+    val schedutilUpBig: Int = 200,
+    val schedutilDownBig: Int = 20000,
+    val topAppBoost: Int = 20,
+    val fgBoost: Int = 5,
+    val gpuBoost: Boolean = true,
+    val dramBoost: Boolean = false,
+    val touchBoost: Boolean = true,
+    val rescueOpp: Int = 0
+)
+
+data class CustomColorProfile(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String = "Custom Color",
+    val sat: Int = 4,
+    val contrast: Int = 4,
+    val brightness: Int = 4,
+    val satAdj: Int = 0
+)
 
 data class TuningFeatures(
     // Gaming & Performance
@@ -108,6 +134,16 @@ data class TuningFeatures(
     val doubleTapToWake: Boolean = false,
     val trueToneDisplay: Boolean = false,
     val colorMode: Int = 0,
+    val customColorSat: Int = 4,
+    val customColorContrast: Int = 4,
+    val customColorBrightness: Int = 4,
+    val customColorSatAdj: Int = 0,
+    val customKprofile: CustomKprofile = CustomKprofile(),
+    val savedKprofiles: List<CustomKprofile> = emptyList(),
+    val customColorProfile: CustomColorProfile = CustomColorProfile(),
+    val savedColorProfiles: List<CustomColorProfile> = emptyList(),
+    val activeKprofileId: String? = null,
+    val activeColorProfileId: String? = null,
     val hbmMode: Int = 0,
     val vibratorStrengthPercent: Int = 85,
     val headphoneGainDb: Int = 0,

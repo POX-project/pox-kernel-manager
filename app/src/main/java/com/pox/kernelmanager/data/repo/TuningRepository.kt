@@ -31,6 +31,7 @@ object TuningRepository {
      * and 100, so these stay inside the range the kernel accepts.
      */
     private val boostForMode = mapOf(
+        GamingModeLevel.POWERSAVE to -20,
         GamingModeLevel.BALANCED to 0,
         GamingModeLevel.GAMING to 50,
         GamingModeLevel.EXTREME to 100
@@ -91,6 +92,7 @@ object TuningRepository {
         } else savedGaming
 
         val gamingLevel = when (gamingRaw) {
+            -1 -> GamingModeLevel.POWERSAVE
             1 -> GamingModeLevel.GAMING
             2 -> GamingModeLevel.EXTREME
             else -> GamingModeLevel.BALANCED
@@ -106,10 +108,12 @@ object TuningRepository {
         } else prefs.getInt("kprofiles_mode", 2)
 
         val kprofilesLevel = when (kprofilesRaw) {
+            0 -> KprofilesLevel.DISABLED
             1 -> KprofilesLevel.BATTERY
             2 -> KprofilesLevel.BALANCED
             3 -> KprofilesLevel.PERFORMANCE
-            else -> KprofilesLevel.DISABLED
+            4 -> KprofilesLevel.CUSTOM
+            else -> KprofilesLevel.BALANCED
         }
 
         val autoKp = if (isRoot) {
@@ -362,6 +366,12 @@ object TuningRepository {
             doubleTapToWake = dt2w,
             trueToneDisplay = trueTone,
             colorMode = colorMode,
+            customColorSat = prefs.getInt("color_custom_sat", 4),
+            customColorContrast = prefs.getInt("color_custom_con", 4),
+            customColorBrightness = prefs.getInt("color_custom_bri", 4),
+            customColorSatAdj = prefs.getInt("color_custom_adj", 0),
+            activeKprofileId = CustomProfilesRepository.getActiveKprofileId(),
+            activeColorProfileId = CustomProfilesRepository.getActiveColorProfileId(),
             hbmMode = hbmMode,
             vibratorStrengthPercent = vibrator,
             headphoneGainDb = hpGain,
@@ -403,6 +413,7 @@ object TuningRepository {
 
         val boost = boostForMode[level] ?: 0
         val kpVal = when (level) {
+            GamingModeLevel.POWERSAVE -> "1"
             GamingModeLevel.BALANCED -> "2"
             GamingModeLevel.GAMING, GamingModeLevel.EXTREME -> "3"
         }
@@ -434,6 +445,7 @@ object TuningRepository {
             KprofilesLevel.BALANCED -> "0"
             KprofilesLevel.PERFORMANCE -> "1"
             KprofilesLevel.DISABLED -> "0"
+            KprofilesLevel.CUSTOM -> "0"
         }
 
         applyKernelWrites(
@@ -676,7 +688,7 @@ object TuningRepository {
     }
 
     suspend fun setColorMode(mode: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        val clamped = mode.coerceIn(0, 3)
+        val clamped = mode.coerceIn(0, 4)
         prefs.edit().putInt("color_mode", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Color mode")
         if (!isSupported(TuningFeature.COLOR_MODE)) return@withContext unsupported(TuningFeature.COLOR_MODE)
@@ -684,11 +696,36 @@ object TuningRepository {
             1 -> "Reference D65"
             2 -> "Vivid"
             3 -> "SLog3"
+            4 -> "Custom Profile"
             else -> "Standard"
         }
         applyKernelWrites(
             successLabel = "Display color profile set to $label",
-            KernelNodes.COLOR_MODE_PROC to clamped.toString()
+            KernelNodes.COLOR_MODE_PROC to clamped.toString(),
+            KernelNodes.COLOR_MODE_SYS to clamped.toString()
+        )
+    }
+
+    suspend fun setColorCustom(sat: Int, contrast: Int, brightness: Int, satAdj: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val s = sat.coerceIn(0, 15)
+        val c = contrast.coerceIn(0, 15)
+        val b = brightness.coerceIn(0, 15)
+        val a = satAdj.coerceIn(0, 15)
+        prefs.edit()
+            .putInt("color_custom_sat", s)
+            .putInt("color_custom_con", c)
+            .putInt("color_custom_bri", b)
+            .putInt("color_custom_adj", a)
+            .putInt("color_mode", 4)
+            .apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Custom Color Profile")
+        if (!isSupported(TuningFeature.COLOR_MODE)) return@withContext unsupported(TuningFeature.COLOR_MODE)
+        applyKernelWrites(
+            successLabel = "Custom display colors applied (Sat $s, Con $c, Bri $b, Adj $a)",
+            KernelNodes.COLOR_CUSTOM_PROC to "$s $c $b $a",
+            KernelNodes.COLOR_CUSTOM_SYS to "$s $c $b $a",
+            KernelNodes.COLOR_MODE_PROC to "4",
+            KernelNodes.COLOR_MODE_SYS to "4"
         )
     }
 

@@ -89,6 +89,8 @@ object KernelNodes {
     const val GAMING_MODE_SYS = "/sys/kernel/gaming_mode"
     const val KPROFILES_MODE = "/sys/kernel/kprofiles/kp_mode"
     const val KPROFILES_AUTO = "/sys/kernel/kprofiles/auto_kp"
+    const val KPROFILES_CUSTOM_SYS = "/sys/kernel/kprofiles/custom_params"
+    const val KPROFILES_CUSTOM_PROC = "/proc/perfmgr/kprofiles_custom"
 
     const val HEALTH_CALIBRATION_PROC = "/proc/perfmgr/health_calibration"
     const val HEALTH_CALIBRATION_SYS = "/sys/kernel/health_calibration"
@@ -129,6 +131,9 @@ object KernelNodes {
     const val TRUE_TONE_PROC = "/proc/perfmgr/true_tone"
     const val TRUE_TONE_SYS = "/sys/kernel/true_tone"
     const val COLOR_MODE_PROC = "/proc/perfmgr/color_mode"
+    const val COLOR_MODE_SYS = "/sys/kernel/color_mode"
+    const val COLOR_CUSTOM_PROC = "/proc/perfmgr/color_custom"
+    const val COLOR_CUSTOM_SYS = "/sys/kernel/color_custom"
     const val HBM_MODE_PROC = "/proc/perfmgr/hbm_mode"
     const val TORCH_BRIGHTNESS_PROC = "/proc/perfmgr/torch_brightness"
     const val TORCH_BRIGHTNESS_SYS = "/sys/kernel/torch_brightness"
@@ -248,6 +253,9 @@ object KernelNodes {
         TRUE_TONE_PROC,
         TRUE_TONE_SYS,
         COLOR_MODE_PROC,
+        COLOR_MODE_SYS,
+        COLOR_CUSTOM_PROC,
+        COLOR_CUSTOM_SYS,
         HBM_MODE_PROC,
         TORCH_BRIGHTNESS_PROC,
         CAMERA_4K60_PROC,
@@ -339,7 +347,7 @@ object KernelNodes {
         val thermalGuard = writable(THERMAL_GUARD_SYS)
         val dt2w = writable(DT2W_PROC)
         val trueTone = writable(TRUE_TONE_PROC) || writable(TRUE_TONE_SYS)
-        val colorMode = writable(COLOR_MODE_PROC)
+        val colorMode = writable(COLOR_MODE_PROC) || writable(COLOR_CUSTOM_PROC) || writable(COLOR_CUSTOM_SYS)
         val hbmMode = writable(HBM_MODE_PROC)
         val headphoneGain = writable(HEADPHONE_GAIN_PROC)
         val micGain = writable(MIC_GAIN_PROC)
