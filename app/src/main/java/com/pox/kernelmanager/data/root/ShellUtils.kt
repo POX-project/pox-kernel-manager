@@ -50,6 +50,12 @@ object ShellUtils {
     private val PROBE_SCRIPT: String = buildString {
         appendLine("echo \"${PROBE_PREFIX}uid=\$(id -u 2>/dev/null)\"")
 
+        // Active su binary identification - highest authority on what is granting root
+        appendLine("SU_V=\$(su -v 2>/dev/null)")
+        appendLine("[ -n \"\$SU_V\" ] && echo \"${PROBE_PREFIX}su_v=\$SU_V\"")
+        appendLine("SU_NUM=\$(su -V 2>/dev/null)")
+        appendLine("[ -n \"\$SU_NUM\" ] && echo \"${PROBE_PREFIX}su_num=\$SU_NUM\"")
+
         // Magisk: running daemon and version check
         appendLine("MAGISK_V=\$(magisk -v 2>/dev/null)")
         appendLine("[ -n \"\$MAGISK_V\" ] && echo \"${PROBE_PREFIX}magisk_ver=\$MAGISK_V\"")
@@ -58,12 +64,15 @@ object ShellUtils {
         appendLine("[ -e /dev/.magisk-unblock ] && echo \"${PROBE_PREFIX}magisk_unblock=1\"")
         appendLine("pidof magiskd >/dev/null 2>&1 && echo \"${PROBE_PREFIX}magiskd_running=1\"")
 
-        // KernelPatch / APatch: REQUIRES active /dev/kp character device
+        // KernelPatch / APatch
         appendLine("[ -e /dev/kp ] && echo \"${PROBE_PREFIX}kp=1\"")
         appendLine("[ -d /data/adb/ap ] && echo \"${PROBE_PREFIX}ap_dir=1\"")
         appendLine("[ -x /data/adb/ap/bin/apd ] && echo \"${PROBE_PREFIX}apd=1\"")
         appendLine("[ -x /data/adb/ap/bin/apstat ] && echo \"${PROBE_PREFIX}apstat=1\"")
         appendLine("[ -d /data/adb/ap/modules ] && echo \"${PROBE_PREFIX}ap_modules=1\"")
+        appendLine("pidof apd >/dev/null 2>&1 && echo \"${PROBE_PREFIX}apd_running=1\"")
+        appendLine("APD_V=\$(/data/adb/ap/bin/apd -V 2>/dev/null)")
+        appendLine("[ -n \"\$APD_V\" ] && echo \"${PROBE_PREFIX}apd_ver=\$APD_V\"")
 
         // KernelSU lineage: REQUIRES active /sys/module/kernelsu driver
         appendLine("[ -e /sys/module/kernelsu ] && echo \"${PROBE_PREFIX}ksu_lkm=1\"")
@@ -182,24 +191,43 @@ object ShellUtils {
     }
 
     private fun classifyRoot(probes: Map<String, String>, packages: Set<String>): RootProvider {
-        val hasMagisk = "magisk_ver" in probes || "magiskd_running" in probes || "magisk_dev" in probes
-        val hasKp = "kp" in probes
-        val hasKsuDriver = "ksu_lkm" in probes
+        val suV = probes["su_v"]?.lowercase().orEmpty()
 
-        // 1. If Magisk daemon is running and kernel has no KP or KSU driver active, it is Magisk
-        if (hasMagisk && !hasKp && !hasKsuDriver) {
+        // 1. First priority: active su binary response. The binary handling the root shell is definitive.
+        if (suV.contains("apatch") || suV.contains("kernelpatch") || suV.contains("folkpatch") || suV.contains("folk")) {
+            return if (suV.contains("kernelpatch")) RootProvider.KERNELPATCH else RootProvider.APATCH
+        }
+        if (suV.contains("kernelsu") || suV.contains("ksu")) {
+            val bakasu = "adbroot" in probes || "dynamic_mgr" in probes ||
+                "com.resukisu.resukisu" in packages || "org.bakasu.bakasu" in packages
+            val ksuNext = "com.rifsxd.ksunext" in packages
+            val sukisu = "com.sukisu.ultra" in packages
+            return when {
+                bakasu -> RootProvider.BAKASU
+                ksuNext -> RootProvider.KERNELSU_NEXT
+                sukisu -> RootProvider.SUKISU_ULTRA
+                else -> RootProvider.KERNELSU
+            }
+        }
+        if (suV.contains("magisk")) {
             return RootProvider.MAGISK
         }
-
-        // 2. KernelPatch / APatch requires the kernel character device /dev/kp
-        if (hasKp) {
-            val isApatch = "apd" in probes || "ap_dir" in probes ||
-                "me.bmax.apatch" in packages || "me.yuki.folk" in packages
-            return if (isApatch) RootProvider.APATCH else RootProvider.KERNELPATCH
+        if (suV.contains("supersu")) {
+            return RootProvider.SUPERSU
         }
 
-        // 3. KernelSU requires /sys/module/kernelsu
-        if (hasKsuDriver) {
+        // 2. Running active daemons and kernel interfaces
+        val hasApd = "apd_running" in probes || "apd" in probes || "ap_dir" in probes || "kp" in probes
+        val hasKsu = "ksu_lkm" in probes || "ksud_running" in probes || "ksud_bin" in probes
+        val hasMagisk = "magiskd_running" in probes && "magisk_ver" in probes
+
+        // Active APatch daemon takes precedence over dormant Magisk leftovers
+        if (hasApd) {
+            val isKpOnly = "kp" in probes && !hasApd && "me.bmax.kernelpatch" in packages
+            return if (isKpOnly) RootProvider.KERNELPATCH else RootProvider.APATCH
+        }
+
+        if (hasKsu) {
             val bakasu = "adbroot" in probes || "dynamic_mgr" in probes ||
                 "com.resukisu.resukisu" in packages || "org.bakasu.bakasu" in packages
             val ksuNext = "com.rifsxd.ksunext" in packages
@@ -212,16 +240,15 @@ object ShellUtils {
             }
         }
 
-        // 4. If Magisk is present in any form
-        if (hasMagisk || "magisk_dir" in probes || "com.topjohnwu.magisk" in packages) {
+        if (hasMagisk || ("magiskd_running" in probes && "com.topjohnwu.magisk" in packages && !hasApd && !hasKsu)) {
             return RootProvider.MAGISK
         }
 
-        // 5. Fallback to package detection
+        // 3. Fallback to manager packages
         val byPkg = classifyByPackage(packages)
         if (byPkg != null) return byPkg
 
-        // 6. Fallback to markers
+        // 4. Fallback to markers
         return classifyByMarkers(probes) ?: RootProvider.UNKNOWN
     }
 
@@ -249,8 +276,13 @@ object ShellUtils {
 
     private suspend fun fetchVersion(provider: RootProvider, probes: Map<String, String>): String {
         if ("uid" !in probes) return ""
+        probes["su_v"]?.takeIf { it.isNotBlank() }?.let { return it }
+        probes["su_num"]?.takeIf { it.isNotBlank() }?.let { return it }
         if (provider == RootProvider.MAGISK && probes["magisk_ver"] != null) {
             return probes["magisk_ver"]!!
+        }
+        if (provider == RootProvider.APATCH && probes["apd_ver"] != null) {
+            return probes["apd_ver"]!!
         }
         val candidates = when (provider) {
             RootProvider.BAKASU, RootProvider.KERNELSU_NEXT,
