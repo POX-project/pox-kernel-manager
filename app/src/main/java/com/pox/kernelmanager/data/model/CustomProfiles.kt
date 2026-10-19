@@ -5,7 +5,7 @@ import java.util.UUID
 
 data class CustomColorProfile(
     val id: String = UUID.randomUUID().toString(),
-    val name: String,
+    val name: String = "Custom Profile",
     val description: String = "",
     val saturation: Int = 4,
     val contrast: Int = 4,
@@ -83,7 +83,7 @@ data class CustomColorProfile(
 
 data class CustomKprofile(
     val id: String = UUID.randomUUID().toString(),
-    val name: String,
+    val name: String = "Custom Profile",
     val description: String = "",
     val gamingMode: GamingModeLevel = GamingModeLevel.BALANCED,
     val touchGameMode: Boolean = false,

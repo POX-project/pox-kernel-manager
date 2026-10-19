@@ -76,30 +76,6 @@ enum class HealthCalibrationMode(val value: Int, val title: String, val descript
     LONGEVITY(3, "Maximum Longevity", "Limits big core voltage strain to extend battery lifespan")
 }
 
-data class CustomKprofile(
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val name: String = "Custom Profile",
-    val schedutilUpLittle: Int = 500,
-    val schedutilDownLittle: Int = 20000,
-    val schedutilUpBig: Int = 200,
-    val schedutilDownBig: Int = 20000,
-    val topAppBoost: Int = 20,
-    val fgBoost: Int = 5,
-    val gpuBoost: Boolean = true,
-    val dramBoost: Boolean = false,
-    val touchBoost: Boolean = true,
-    val rescueOpp: Int = 0
-)
-
-data class CustomColorProfile(
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val name: String = "Custom Color",
-    val sat: Int = 4,
-    val contrast: Int = 4,
-    val brightness: Int = 4,
-    val satAdj: Int = 0
-)
-
 data class TuningFeatures(
     // Gaming & Performance
     val gamingMode: GamingModeLevel = GamingModeLevel.BALANCED,
