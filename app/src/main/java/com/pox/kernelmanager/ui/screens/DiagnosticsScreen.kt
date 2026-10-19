@@ -92,6 +92,49 @@ fun DiagnosticsScreen(
                 enabled = uiState.isRootGranted
             )
 
+            if (uiState.hardwareProfile.isNotEmpty()) {
+                SectionHeader(
+                    title = "Hardware Profile Status",
+                    subtitle = "Real-time state exported by /proc/perfmgr/profile"
+                )
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 5.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        uiState.hardwareProfile.lines().filter { it.isNotBlank() && !it.startsWith("===") }.forEach { line ->
+                            val parts = line.split(":", limit = 2)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = parts.getOrNull(0)?.trim().orEmpty(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = parts.getOrNull(1)?.trim().orEmpty(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Export Diagnostic Report
             SectionHeader(
                 title = "Kernel Node Report",

@@ -231,10 +231,153 @@ fun FeaturesScreen(
 
             UnsupportedReason(uiState.features.reasonFor(TuningFeature.THERMAL_GUARD))
 
-            // 3. MIUI / HyperOS xswapd Subsystem
+            // 3. Media & Camera Studio
             SectionHeader(
-                title = "HyperOS xswapd Daemon",
-                subtitle = "Asynchronous per-memcg page swap & memory compressor"
+                title = "Media & Camera Studio",
+                subtitle = "Hardware 4K60 unlock, Sony S-Log3 cinema profile & torch overdrive"
+            )
+
+            FeatureSwitchCard(
+                title = "Camera 4K60 FPS Mode",
+                description = "Unlocks 4K 60 frames-per-second recording pipeline (/proc/perfmgr/camera_4k60)",
+                isChecked = uiState.features.camera4k60Enabled,
+                onCheckedChange = { viewModel.toggleCamera4k60(it) },
+                icon = Icons.Default.Videocam,
+                enabled = uiState.features.isSupported(TuningFeature.CAMERA_4K60)
+            )
+
+            FeatureSwitchCard(
+                title = "Sony S-Log3 Cinema Flat",
+                description = "Sony cinema logarithmic gamma curve for color grading in DaVinci Resolve (/proc/perfmgr/slog3)",
+                isChecked = uiState.features.slog3Enabled,
+                onCheckedChange = { viewModel.toggleSlog3(it) },
+                icon = Icons.Default.Movie,
+                enabled = uiState.features.isSupported(TuningFeature.CAMERA_SLOG3)
+            )
+
+            FeatureSliderCard(
+                title = "Flashlight Brightness Overdrive",
+                valueLabel = "${uiState.features.torchBrightness}/255",
+                description = "Direct MT6360 PMIC torch overdrive (/proc/perfmgr/torch_brightness clamped at safe 325mA)",
+                value = uiState.features.torchBrightness.toFloat(),
+                valueRange = 0f..255f,
+                steps = 16,
+                onValueChange = { viewModel.setTorchBrightness(it.toInt()) },
+                enabled = uiState.features.isSupported(TuningFeature.TORCH_BRIGHTNESS)
+            )
+
+            // 4. Network & Tethering
+            SectionHeader(
+                title = "Network & Tethering",
+                subtitle = "High-speed TCP pacing & tethering hotspot uncap"
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 5.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "TCP Congestion Algorithm",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Kernel TCP pacing engine (/proc/sys/net/ipv4/tcp_congestion_control)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
+                    )
+                    val available = if (uiState.features.availableTcpCongestions.isNotEmpty()) {
+                        uiState.features.availableTcpCongestions
+                    } else listOf("bbr", "westwood", "cubic")
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        available.take(4).forEachIndexed { index, algo ->
+                            SegmentedButton(
+                                selected = uiState.features.tcpCongestion.equals(algo, ignoreCase = true),
+                                onClick = { viewModel.setTcpCongestion(algo) },
+                                enabled = uiState.features.isSupported(TuningFeature.TCP_CONGESTION),
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = available.take(4).size)
+                            ) {
+                                Text(algo.uppercase(), style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            }
+
+            FeatureSwitchCard(
+                title = "Tethering TTL 64 / HL 64 Hotspot Uncap",
+                description = "Applies netfilter mangle rules to bypass carrier hotspot tethering throttle",
+                isChecked = uiState.features.ttl64Enabled,
+                onCheckedChange = { viewModel.toggleTtl64(it) },
+                icon = Icons.Default.WifiTethering,
+                enabled = uiState.features.isSupported(TuningFeature.TTL_64)
+            )
+
+            // 5. Advanced Kernel Scheduler & Energy
+            SectionHeader(
+                title = "Advanced Kernel Scheduler & Energy",
+                subtitle = "Workqueue power clustering, WALT tracking & C-state awareness"
+            )
+
+            FeatureSwitchCard(
+                title = "Power-Efficient Workqueues",
+                description = "Groups unbound workqueues to avoid waking idle CPU cores (/sys/module/workqueue/parameters/power_efficient)",
+                isChecked = uiState.features.wqPowerEfficient,
+                onCheckedChange = { viewModel.toggleWqPowerEfficient(it) },
+                icon = Icons.Default.BatterySaver,
+                enabled = uiState.features.isSupported(TuningFeature.WORKQUEUE_POWER_EFFICIENT)
+            )
+
+            FeatureSwitchCard(
+                title = "WALT CPU Utilization",
+                description = "Uses Window-Assisted Load Tracking for faster CPU frequency ramp-up (/proc/sys/kernel/sched_use_walt_cpu_util)",
+                isChecked = uiState.features.waltCpuUtil,
+                onCheckedChange = { viewModel.toggleWaltCpuUtil(it) },
+                icon = Icons.Default.Speed,
+                enabled = uiState.features.isSupported(TuningFeature.WALT_CPU_UTIL)
+            )
+
+            FeatureSwitchCard(
+                title = "WALT Task Utilization",
+                description = "Uses WALT task load signals for task placement on optimal cores (/proc/sys/kernel/sched_use_walt_task_util)",
+                isChecked = uiState.features.waltTaskUtil,
+                onCheckedChange = { viewModel.toggleWaltTaskUtil(it) },
+                icon = Icons.Default.Insights,
+                enabled = uiState.features.isSupported(TuningFeature.WALT_TASK_UTIL)
+            )
+
+            FeatureSwitchCard(
+                title = "C-State Aware Scheduling",
+                description = "Prefers waking CPUs in shallower idle states to save energy and latency (/proc/sys/kernel/sched_cstate_aware)",
+                isChecked = uiState.features.schedCstateAware,
+                onCheckedChange = { viewModel.toggleSchedCstateAware(it) },
+                icon = Icons.Default.PowerSettingsNew,
+                enabled = uiState.features.isSupported(TuningFeature.SCHED_CSTATE_AWARE)
+            )
+
+            // 6. Memory & HyperOS xswapd Subsystem
+            SectionHeader(
+                title = "Memory Management & xswapd",
+                subtitle = "VM swappiness, asynchronous per-memcg page swap & compressor"
+            )
+
+            FeatureSliderCard(
+                title = "VM Swappiness",
+                valueLabel = "${uiState.features.vmSwappiness}",
+                description = "Aggressiveness of kernel page swapping to zRAM (/proc/sys/vm/swappiness)",
+                value = uiState.features.vmSwappiness.toFloat(),
+                valueRange = 0f..100f,
+                steps = 19,
+                onValueChange = { viewModel.setVmSwappiness(it.toInt()) },
+                enabled = uiState.features.isSupported(TuningFeature.VM_SWAPPINESS)
             )
 
             FeatureSwitchCard(
@@ -289,7 +432,7 @@ fun FeaturesScreen(
                 }
             }
 
-            // 4. Display, Touch, Audio & Haptics
+            // 7. Display, Touch, Audio & Haptics
             SectionHeader(
                 title = "Display, Touch, Audio & Haptics",
                 subtitle = "Calibrated color profiles, audio amplifier boost & tactile feedback"
@@ -484,7 +627,7 @@ fun FeaturesScreen(
                 enabled = uiState.features.isSupported(TuningFeature.VIBRATOR_STRENGTH)
             )
 
-            // 5. Storage & Filesystem
+            // 8. Storage & Filesystem
             SectionHeader(
                 title = "Storage & Dynamic Fsync",
                 subtitle = "Micro-stutter elimination & UFS flash scheduler"

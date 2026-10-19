@@ -117,6 +117,24 @@ object KernelNodes {
     const val COLOR_MODE_PROC = "/proc/perfmgr/color_mode"
     const val HBM_MODE_PROC = "/proc/perfmgr/hbm_mode"
     const val TORCH_BRIGHTNESS_PROC = "/proc/perfmgr/torch_brightness"
+    const val TORCH_BRIGHTNESS_SYS = "/sys/kernel/torch_brightness"
+
+    const val CAMERA_4K60_PROC = "/proc/perfmgr/camera_4k60"
+    const val CAMERA_4K60_SYS = "/sys/kernel/camera_4k60"
+    const val CAMERA_SLOG3_PROC = "/proc/perfmgr/slog3"
+    const val CAMERA_SLOG3_SYS = "/sys/kernel/slog3"
+
+    const val WQ_POWER_EFFICIENT = "/sys/module/workqueue/parameters/power_efficient"
+
+    const val TCP_CONGESTION_CONTROL = "/proc/sys/net/ipv4/tcp_congestion_control"
+    const val TCP_AVAILABLE_CONGESTION = "/proc/sys/net/ipv4/tcp_available_congestion_control"
+
+    const val SCHED_WALT_CPU_UTIL = "/proc/sys/kernel/sched_use_walt_cpu_util"
+    const val SCHED_WALT_TASK_UTIL = "/proc/sys/kernel/sched_use_walt_task_util"
+    const val SCHED_CSTATE_AWARE = "/proc/sys/kernel/sched_cstate_aware"
+
+    const val VM_SWAPPINESS = "/proc/sys/vm/swappiness"
+    const val VM_VFS_CACHE_PRESSURE = "/proc/sys/vm/vfs_cache_pressure"
 
     const val VIBRATOR_STRENGTH_PROC = "/proc/perfmgr/vibrator_strength"
     const val VIBRATOR_VMAX = "/sys/devices/platform/odm/odm:vibrator@0/leds/vibrator/vmax"
@@ -215,6 +233,14 @@ object KernelNodes {
         COLOR_MODE_PROC,
         HBM_MODE_PROC,
         TORCH_BRIGHTNESS_PROC,
+        CAMERA_4K60_PROC,
+        CAMERA_SLOG3_PROC,
+        WQ_POWER_EFFICIENT,
+        TCP_CONGESTION_CONTROL,
+        SCHED_WALT_CPU_UTIL,
+        SCHED_WALT_TASK_UTIL,
+        SCHED_CSTATE_AWARE,
+        VM_SWAPPINESS,
         VIBRATOR_STRENGTH_PROC,
         DYNAMIC_FSYNC_PROC,
         DYNAMIC_FSYNC_SYS,
@@ -298,6 +324,17 @@ object KernelNodes {
         val vibrator = writable(VIBRATOR_STRENGTH_PROC) || writable(VIBRATOR_VMAX)
         val wakelockBlocker = writable(WAKELOCK_BLOCKER_PROC)
 
+        val camera4k60 = writable(CAMERA_4K60_PROC) || writable(CAMERA_4K60_SYS)
+        val cameraSlog3 = writable(CAMERA_SLOG3_PROC) || writable(CAMERA_SLOG3_SYS)
+        val torch = writable(TORCH_BRIGHTNESS_PROC) || writable(TORCH_BRIGHTNESS_SYS)
+        val wqPower = writable(WQ_POWER_EFFICIENT)
+        val tcpCong = writable(TCP_CONGESTION_CONTROL)
+        val ttl64 = ShellUtils.runCommand("iptables -t mangle -L POSTROUTING -n 2>/dev/null").isSuccess
+        val waltCpu = writable(SCHED_WALT_CPU_UTIL)
+        val waltTask = writable(SCHED_WALT_TASK_UTIL)
+        val cstate = writable(SCHED_CSTATE_AWARE)
+        val swappiness = writable(VM_SWAPPINESS)
+
         var blockQueue: String? = null
         for (queue in blockDevices()) {
             if (writable("$queue/queue/read_ahead_kb")) {
@@ -335,6 +372,17 @@ object KernelNodes {
             TuningFeature.ACTIVE_MIC to activeMic,
             TuningFeature.VIBRATOR_STRENGTH to vibrator,
             TuningFeature.WAKELOCK_BLOCKER to wakelockBlocker,
+
+            TuningFeature.CAMERA_4K60 to camera4k60,
+            TuningFeature.CAMERA_SLOG3 to cameraSlog3,
+            TuningFeature.TORCH_BRIGHTNESS to torch,
+            TuningFeature.WORKQUEUE_POWER_EFFICIENT to wqPower,
+            TuningFeature.TCP_CONGESTION to tcpCong,
+            TuningFeature.TTL_64 to ttl64,
+            TuningFeature.WALT_CPU_UTIL to waltCpu,
+            TuningFeature.WALT_TASK_UTIL to waltTask,
+            TuningFeature.SCHED_CSTATE_AWARE to cstate,
+            TuningFeature.VM_SWAPPINESS to swappiness,
 
             TuningFeature.READ_AHEAD to (blockQueue != null),
             TuningFeature.IO_SCHEDULER to (blockQueue != null),

@@ -114,6 +114,26 @@ fun setZramSizeMb(sizeMb: Long) = apply { TuningRepository.setZramSizeMb(sizeMb)
 
     fun setReadAhead(kb: Int) = apply { TuningRepository.setReadAheadKb(kb) }
 
+    fun toggleCamera4k60(enable: Boolean) = apply { TuningRepository.setCamera4k60(enable) }
+
+    fun toggleSlog3(enable: Boolean) = apply { TuningRepository.setSlog3(enable) }
+
+    fun setTorchBrightness(level: Int) = apply { TuningRepository.setTorchBrightness(level) }
+
+    fun setTcpCongestion(algorithm: String) = apply { TuningRepository.setTcpCongestion(algorithm) }
+
+    fun toggleTtl64(enable: Boolean) = apply { TuningRepository.setTtl64(enable) }
+
+    fun toggleWqPowerEfficient(enable: Boolean) = apply { TuningRepository.setWqPowerEfficient(enable) }
+
+    fun toggleWaltCpuUtil(enable: Boolean) = apply { TuningRepository.setWaltCpuUtil(enable) }
+
+    fun toggleWaltTaskUtil(enable: Boolean) = apply { TuningRepository.setWaltTaskUtil(enable) }
+
+    fun toggleSchedCstateAware(enable: Boolean) = apply { TuningRepository.setSchedCstateAware(enable) }
+
+    fun setVmSwappiness(value: Int) = apply { TuningRepository.setVmSwappiness(value) }
+
     fun isSupported(feature: TuningFeature): Boolean = _uiState.value.features.isSupported(feature)
 
     fun clearFeedback() {

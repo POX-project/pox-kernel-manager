@@ -212,6 +212,62 @@ object TuningRepository {
 
         val zramSize = ShellUtils.readNode("/sys/block/zram0/disksize")?.trim()?.toLongOrNull()?.div(1024 * 1024) ?: 0L
 
+        val camera4k60 = if (isRoot && isSupported(TuningFeature.CAMERA_4K60)) {
+            ShellUtils.fastRead(KernelNodes.CAMERA_4K60_PROC) == "1" ||
+            ShellUtils.fastRead(KernelNodes.CAMERA_4K60_SYS) == "1"
+        } else prefs.getBoolean("camera_4k60", false)
+
+        val slog3 = if (isRoot && isSupported(TuningFeature.CAMERA_SLOG3)) {
+            ShellUtils.fastRead(KernelNodes.CAMERA_SLOG3_PROC) == "1" ||
+            ShellUtils.fastRead(KernelNodes.CAMERA_SLOG3_SYS) == "1"
+        } else prefs.getBoolean("camera_slog3", false)
+
+        val torchBrightness = if (isRoot && isSupported(TuningFeature.TORCH_BRIGHTNESS)) {
+            ShellUtils.fastRead(KernelNodes.TORCH_BRIGHTNESS_PROC)?.toIntOrNull()
+                ?: ShellUtils.fastRead(KernelNodes.TORCH_BRIGHTNESS_SYS)?.toIntOrNull()
+                ?: prefs.getInt("torch_brightness", 0)
+        } else prefs.getInt("torch_brightness", 0)
+
+        val tcpCong = if (isRoot && isSupported(TuningFeature.TCP_CONGESTION)) {
+            ShellUtils.fastRead(KernelNodes.TCP_CONGESTION_CONTROL)?.trim()
+                ?: prefs.getString("tcp_congestion", "bbr") ?: "bbr"
+        } else prefs.getString("tcp_congestion", "bbr") ?: "bbr"
+
+        val availableTcp = if (isRoot) {
+            ShellUtils.fastRead(KernelNodes.TCP_AVAILABLE_CONGESTION)?.trim()?.split(Regex("\\s+"))?.filter { it.isNotEmpty() }
+                ?: listOf("bbr", "westwood", "cubic")
+        } else listOf("bbr", "westwood", "cubic")
+
+        val ttl64 = if (isRoot) {
+            ShellUtils.runCommand("iptables -t mangle -C POSTROUTING -j TTL --ttl-set 64 2>/dev/null").isSuccess
+        } else prefs.getBoolean("ttl_64", false)
+
+        val wqPower = if (isRoot && isSupported(TuningFeature.WORKQUEUE_POWER_EFFICIENT)) {
+            val r = ShellUtils.fastRead(KernelNodes.WQ_POWER_EFFICIENT)?.trim()
+            r == "Y" || r == "1" || r == "y"
+        } else prefs.getBoolean("wq_power_efficient", true)
+
+        val waltCpu = if (isRoot && isSupported(TuningFeature.WALT_CPU_UTIL)) {
+            ShellUtils.fastRead(KernelNodes.SCHED_WALT_CPU_UTIL)?.trim() == "1"
+        } else prefs.getBoolean("walt_cpu_util", false)
+
+        val waltTask = if (isRoot && isSupported(TuningFeature.WALT_TASK_UTIL)) {
+            ShellUtils.fastRead(KernelNodes.SCHED_WALT_TASK_UTIL)?.trim() == "1"
+        } else prefs.getBoolean("walt_task_util", false)
+
+        val schedCstate = if (isRoot && isSupported(TuningFeature.SCHED_CSTATE_AWARE)) {
+            ShellUtils.fastRead(KernelNodes.SCHED_CSTATE_AWARE)?.trim() == "1"
+        } else prefs.getBoolean("sched_cstate_aware", false)
+
+        val vmSwappiness = if (isRoot && isSupported(TuningFeature.VM_SWAPPINESS)) {
+            ShellUtils.fastRead(KernelNodes.VM_SWAPPINESS)?.trim()?.toIntOrNull()
+                ?: prefs.getInt("vm_swappiness", 100)
+        } else prefs.getInt("vm_swappiness", 100)
+
+        val vfsPressure = if (isRoot) {
+            ShellUtils.fastRead(KernelNodes.VM_VFS_CACHE_PRESSURE)?.trim()?.toIntOrNull() ?: 100
+        } else 100
+
         TuningFeatures(
             gamingMode = gamingLevel,
             touchBoost240Hz = touchBoost,
@@ -234,6 +290,18 @@ object TuningRepository {
             wakelockBlockerEnabled = wakelock,
             dynamicFsync = fsync,
             readAheadKb = readAhead,
+            camera4k60Enabled = camera4k60,
+            slog3Enabled = slog3,
+            torchBrightness = torchBrightness,
+            tcpCongestion = tcpCong,
+            availableTcpCongestions = availableTcp,
+            ttl64Enabled = ttl64,
+            wqPowerEfficient = wqPower,
+            waltCpuUtil = waltCpu,
+            waltTaskUtil = waltTask,
+            schedCstateAware = schedCstate,
+            vmSwappiness = vmSwappiness,
+            vfsCachePressure = vfsPressure,
             ioScheduler = activeScheduler,
             availableSchedulers = schedulerOptions,
             cpuGovernor = activeGovernor,
@@ -531,6 +599,129 @@ object TuningRepository {
             successLabel = "Vibrator strength set to $clamped% (level=0x${Integer.toHexString(level).uppercase()})",
             KernelNodes.VIBRATOR_STRENGTH_PROC to level.toString(),
             KernelNodes.VIBRATOR_VMAX to level.toString()
+        )
+    }
+
+    // ---- Media & Camera Studio ----
+
+    suspend fun setCamera4k60(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
+        prefs.edit().putBoolean("camera_4k60", enable).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Camera 4K60 FPS")
+        if (!isSupported(TuningFeature.CAMERA_4K60)) return@withContext unsupported(TuningFeature.CAMERA_4K60)
+        applyKernelWrites(
+            successLabel = if (enable) "Camera 4K60 FPS mode unlocked" else "Standard camera 30 FPS cap restored",
+            KernelNodes.CAMERA_4K60_PROC to if (enable) "1" else "0",
+            KernelNodes.CAMERA_4K60_SYS to if (enable) "1" else "0"
+        )
+    }
+
+    suspend fun setSlog3(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
+        prefs.edit().putBoolean("camera_slog3", enable).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Sony S-Log3")
+        if (!isSupported(TuningFeature.CAMERA_SLOG3)) return@withContext unsupported(TuningFeature.CAMERA_SLOG3)
+        applyKernelWrites(
+            successLabel = if (enable) "Sony S-Log3 Cinema Flat gamma active" else "Standard camera ISP curve restored",
+            KernelNodes.CAMERA_SLOG3_PROC to if (enable) "1" else "0",
+            KernelNodes.CAMERA_SLOG3_SYS to if (enable) "1" else "0"
+        )
+    }
+
+    suspend fun setTorchBrightness(level: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = level.coerceIn(0, 255)
+        prefs.edit().putInt("torch_brightness", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Flashlight overdrive")
+        if (!isSupported(TuningFeature.TORCH_BRIGHTNESS)) return@withContext unsupported(TuningFeature.TORCH_BRIGHTNESS)
+        applyKernelWrites(
+            successLabel = if (clamped == 0) "Flashlight turned off" else "Flashlight overdrive set to $clamped/255",
+            KernelNodes.TORCH_BRIGHTNESS_PROC to clamped.toString(),
+            KernelNodes.TORCH_BRIGHTNESS_SYS to clamped.toString()
+        )
+    }
+
+    // ---- Network & Tethering ----
+
+    suspend fun setTcpCongestion(algorithm: String): TuningApplyResult = withContext(Dispatchers.IO) {
+        prefs.edit().putString("tcp_congestion", algorithm).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("TCP congestion control")
+        if (!isSupported(TuningFeature.TCP_CONGESTION)) return@withContext unsupported(TuningFeature.TCP_CONGESTION)
+        applyKernelWrites(
+            successLabel = "TCP Congestion algorithm set to $algorithm",
+            KernelNodes.TCP_CONGESTION_CONTROL to algorithm
+        )
+    }
+
+    suspend fun setTtl64(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
+        prefs.edit().putBoolean("ttl_64", enable).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Tethering TTL 64 uncap")
+        if (!isSupported(TuningFeature.TTL_64)) return@withContext unsupported(TuningFeature.TTL_64)
+
+        val cmd = if (enable) {
+            "iptables -t mangle -C POSTROUTING -j TTL --ttl-set 64 2>/dev/null || iptables -t mangle -A POSTROUTING -j TTL --ttl-set 64; " +
+            "ip6tables -t mangle -C POSTROUTING -j HL --hl-set 64 2>/dev/null || ip6tables -t mangle -A POSTROUTING -j HL --hl-set 64"
+        } else {
+            "iptables -t mangle -D POSTROUTING -j TTL --ttl-set 64 2>/dev/null; " +
+            "ip6tables -t mangle -D POSTROUTING -j HL --hl-set 64 2>/dev/null"
+        }
+        val res = ShellUtils.runCommand(cmd)
+        if (res.isSuccess) {
+            TuningApplyResult(true, if (enable) "Tethering TTL 64 / HL 64 uncap active" else "Tethering TTL uncap removed")
+        } else {
+            TuningApplyResult(false, "Failed to apply iptables TTL rule: ${res.output.joinToString()}")
+        }
+    }
+
+    // ---- Advanced Kernel Scheduler & Power ----
+
+    suspend fun setWqPowerEfficient(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
+        prefs.edit().putBoolean("wq_power_efficient", enable).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Workqueue power efficiency")
+        if (!isSupported(TuningFeature.WORKQUEUE_POWER_EFFICIENT)) return@withContext unsupported(TuningFeature.WORKQUEUE_POWER_EFFICIENT)
+        applyKernelWrites(
+            successLabel = if (enable) "Workqueue power-efficient unbound clustering enabled" else "Performance affinity workqueues enabled",
+            KernelNodes.WQ_POWER_EFFICIENT to if (enable) "Y" else "N"
+        )
+    }
+
+    suspend fun setWaltCpuUtil(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
+        prefs.edit().putBoolean("walt_cpu_util", enable).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("WALT CPU utilization")
+        if (!isSupported(TuningFeature.WALT_CPU_UTIL)) return@withContext unsupported(TuningFeature.WALT_CPU_UTIL)
+        applyKernelWrites(
+            successLabel = if (enable) "WALT CPU utilization tracking active" else "Pel-based CPU utilization active",
+            KernelNodes.SCHED_WALT_CPU_UTIL to if (enable) "1" else "0"
+        )
+    }
+
+    suspend fun setWaltTaskUtil(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
+        prefs.edit().putBoolean("walt_task_util", enable).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("WALT task utilization")
+        if (!isSupported(TuningFeature.WALT_TASK_UTIL)) return@withContext unsupported(TuningFeature.WALT_TASK_UTIL)
+        applyKernelWrites(
+            successLabel = if (enable) "WALT task utilization tracking active" else "Pel-based task utilization active",
+            KernelNodes.SCHED_WALT_TASK_UTIL to if (enable) "1" else "0"
+        )
+    }
+
+    suspend fun setSchedCstateAware(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
+        prefs.edit().putBoolean("sched_cstate_aware", enable).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("C-State aware scheduling")
+        if (!isSupported(TuningFeature.SCHED_CSTATE_AWARE)) return@withContext unsupported(TuningFeature.SCHED_CSTATE_AWARE)
+        applyKernelWrites(
+            successLabel = if (enable) "C-State wake energy minimization active" else "C-State aware scheduling disabled",
+            KernelNodes.SCHED_CSTATE_AWARE to if (enable) "1" else "0"
+        )
+    }
+
+    // ---- Memory Tuning ----
+
+    suspend fun setVmSwappiness(swappiness: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = swappiness.coerceIn(0, 200)
+        prefs.edit().putInt("vm_swappiness", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("VM swappiness")
+        if (!isSupported(TuningFeature.VM_SWAPPINESS)) return@withContext unsupported(TuningFeature.VM_SWAPPINESS)
+        applyKernelWrites(
+            successLabel = "VM swappiness set to $clamped",
+            KernelNodes.VM_SWAPPINESS to clamped.toString()
         )
     }
 

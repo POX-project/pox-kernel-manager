@@ -26,6 +26,19 @@ enum class TuningFeature(val label: String, val unsupportedReason: String) {
     VIBRATOR_STRENGTH("Vibrator strength", "Grant root - /proc/perfmgr/vibrator_strength is not writable"),
     WAKELOCK_BLOCKER("Wakelock blocker", "Grant root - /proc/perfmgr/wakelock_blocker is not writable"),
 
+    CAMERA_4K60("Camera 4K60 FPS", "Grant root - /proc/perfmgr/camera_4k60 is not writable"),
+    CAMERA_SLOG3("Sony S-Log3 Cinema", "Grant root - /proc/perfmgr/slog3 is not writable"),
+    TORCH_BRIGHTNESS("Flashlight overdrive", "Grant root - /proc/perfmgr/torch_brightness is not writable"),
+
+    WORKQUEUE_POWER_EFFICIENT("Workqueue power efficiency", "Grant root - /sys/module/workqueue/parameters/power_efficient is not writable"),
+    TCP_CONGESTION("TCP congestion control", "Grant root - /proc/sys/net/ipv4/tcp_congestion_control is not writable"),
+    TTL_64("Tethering TTL 64 uncap", "Grant root or iptables TTL target is unavailable"),
+
+    WALT_CPU_UTIL("WALT CPU utilization", "Grant root - /proc/sys/kernel/sched_use_walt_cpu_util is not writable"),
+    WALT_TASK_UTIL("WALT task utilization", "Grant root - /proc/sys/kernel/sched_use_walt_task_util is not writable"),
+    SCHED_CSTATE_AWARE("C-State aware scheduling", "Grant root - /proc/sys/kernel/sched_cstate_aware is not writable"),
+    VM_SWAPPINESS("VM swappiness", "Grant root - /proc/sys/vm/swappiness is not writable"),
+
     // Present only on some ROMs or with a module installed.
     XSWAPD("xswapd", "Needs /dev/memcg - MIUI/HyperOS ROMs only"),
     DYNAMIC_FSYNC("Dynamic fsync", "Grant root - /proc/perfmgr/dynamic_fsync is not writable"),
@@ -71,9 +84,28 @@ data class TuningFeatures(
     val activeMicMode: Int = 0,
     val wakelockBlockerEnabled: Boolean = false,
 
-    // Storage & I/O
     val dynamicFsync: Boolean = false,
     val readAheadKb: Int = 256,
+
+    // Camera & Media Studio
+    val camera4k60Enabled: Boolean = false,
+    val slog3Enabled: Boolean = false,
+    val torchBrightness: Int = 0,
+
+    // Network & Tethering
+    val tcpCongestion: String = "bbr",
+    val availableTcpCongestions: List<String> = emptyList(),
+    val ttl64Enabled: Boolean = false,
+
+    // Advanced Kernel Sched & Power
+    val wqPowerEfficient: Boolean = true,
+    val waltCpuUtil: Boolean = false,
+    val waltTaskUtil: Boolean = false,
+    val schedCstateAware: Boolean = false,
+
+    // Memory Tuning
+    val vmSwappiness: Int = 100,
+    val vfsCachePressure: Int = 100,
 
     // begonia builds CONFIG_DEFAULT_IOSCHED="noop" and compiles noop, deadline,
     // cfq and the mq variants kyber/deadline, so "mq-deadline" is not selectable.

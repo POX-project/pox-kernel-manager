@@ -21,7 +21,8 @@ data class DiagnosticsUiState(
     val isRootGranted: Boolean = false,
     val isExporting: Boolean = false,
     val exportMessage: String? = null,
-    val nodeReport: List<NodeStatus> = emptyList()
+    val nodeReport: List<NodeStatus> = emptyList(),
+    val hardwareProfile: String = ""
 )
 
 class DiagnosticsViewModel : ViewModel() {
@@ -54,11 +55,15 @@ class DiagnosticsViewModel : ViewModel() {
             } else {
                 listOf("Root access required to view full dmesg buffer.")
             }
+            val profile = if (root) {
+                ShellUtils.fastRead(KernelNodes.PROFILE_PROC)?.trim().orEmpty()
+            } else ""
             _uiState.value = DiagnosticsUiState(
                 dmesgLogs = dmesg,
                 selinuxMode = selinux,
                 isRootGranted = root,
-                nodeReport = report
+                nodeReport = report,
+                hardwareProfile = profile
             )
         }
     }
