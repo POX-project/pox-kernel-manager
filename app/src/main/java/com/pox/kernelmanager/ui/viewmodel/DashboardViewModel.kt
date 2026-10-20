@@ -77,7 +77,7 @@ class DashboardViewModel : ViewModel() {
         if (monitorJob?.isActive == true) return
         monitorJob = viewModelScope.launch {
             while (isActive) {
-                delay(1500)
+                delay(3000)
                 try {
                     val stats = HardwareRepository.getHardwareStats()
                     _uiState.value = _uiState.value.copy(stats = stats)

@@ -1553,12 +1553,12 @@ private fun CreateColorProfileDialog(
                     steps = 8
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Saturation Adjustment (Tone Curve): $satAdj (0-9)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text("Saturation Adjustment (Tone Curve): $satAdj (0-18)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Slider(
                     value = satAdj.toFloat(),
                     onValueChange = { satAdj = it.toInt() },
-                    valueRange = 0f..9f,
-                    steps = 8
+                    valueRange = 0f..18f,
+                    steps = 17
                 )
             }
         },

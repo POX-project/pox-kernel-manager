@@ -76,14 +76,50 @@ object TuningRepository {
         val rootEnv = ShellUtils.environment()
         val support = KernelNodes.support()
 
+        val nodesToRead = mutableListOf(
+            KernelNodes.GAMING_MODE_PROC, KernelNodes.GAMING_MODE_SYS, KernelNodes.BOOST_FG,
+            KernelNodes.KPROFILES_MODE, KernelNodes.KPROFILES_AUTO,
+            KernelNodes.HEALTH_CALIBRATION_PROC, KernelNodes.HEALTH_CALIBRATION_SYS, KernelNodes.HEALTH_STATUS_PROC,
+            KernelNodes.SCHED_BORE_SYS, KernelNodes.SCHED_BORE_PROC,
+            KernelNodes.SCHED_BURST_PENALTY_SCALE, KernelNodes.SCHED_BURST_PENALTY_OFFSET, KernelNodes.SCHED_BURST_INHERIT_TYPE,
+            KernelNodes.TOUCH_GAME_MODE_PROC, KernelNodes.USRTCH, KernelNodes.TOUCH_SENSITIVITY_PROC,
+            KernelNodes.FAST_CHARGE_PROC, KernelNodes.BATTERY_BYPASS_PROC, KernelNodes.BATTERY_BYPASS_SYS,
+            KernelNodes.BATTERY_LIMIT_PROC, KernelNodes.BATTERY_LIMIT_SYS,
+            KernelNodes.THERMAL_GUARD_SYS, KernelNodes.TEMP_LIMIT_SYS,
+            "/dev/memcg/memory.xswapd.enable", "/dev/memcg/memory.xswapd.quota",
+            KernelNodes.DT2W_PROC, KernelNodes.TRUE_TONE_SYS, KernelNodes.TRUE_TONE_PROC,
+            KernelNodes.COLOR_MODE_SYS, KernelNodes.COLOR_MODE_PROC, KernelNodes.HBM_MODE_PROC,
+            KernelNodes.VIBRATOR_STRENGTH_PROC, KernelNodes.VIBRATOR_VMAX,
+            KernelNodes.HEADPHONE_GAIN_PROC, KernelNodes.MIC_GAIN_PROC,
+            KernelNodes.ACTIVE_MIC_PROC, KernelNodes.ACTIVE_MIC_SYS,
+            KernelNodes.WAKELOCK_BLOCKER_PROC, KernelNodes.DYNAMIC_FSYNC_PROC,
+            KernelNodes.DRIVEDROID_CDROM_PROC, KernelNodes.DRIVEDROID_CDROM_SYS, KernelNodes.DRIVEDROID_LUN0_SYS,
+            "/sys/block/zram0/disksize", KernelNodes.CAMERA_4K60_PROC, KernelNodes.CAMERA_4K60_SYS,
+            KernelNodes.CAMERA_SLOG3_PROC, KernelNodes.CAMERA_SLOG3_SYS,
+            KernelNodes.TORCH_BRIGHTNESS_PROC, KernelNodes.TORCH_BRIGHTNESS_SYS,
+            KernelNodes.TCP_CONGESTION_CONTROL, KernelNodes.TCP_AVAILABLE_CONGESTION,
+            KernelNodes.WQ_POWER_EFFICIENT, KernelNodes.SCHED_WALT_CPU_UTIL, KernelNodes.SCHED_WALT_TASK_UTIL,
+            KernelNodes.SCHED_CSTATE_AWARE, KernelNodes.VM_SWAPPINESS, KernelNodes.VM_VFS_CACHE_PRESSURE
+        )
+        val firstQueue = blockQueues().firstOrNull()
+        if (firstQueue != null) {
+            nodesToRead.add("$firstQueue/read_ahead_kb")
+            nodesToRead.add("$firstQueue/scheduler")
+        }
+        val firstCpuPolicy = KernelNodes.cpufreqPolicies().firstOrNull()
+        if (firstCpuPolicy != null) {
+            nodesToRead.add("$firstCpuPolicy/cpufreq/scaling_governor")
+        }
+
+        val batch = if (isRoot) ShellUtils.batchRead(nodesToRead) else emptyMap()
+        fun node(path: String): String? = batch[path]?.takeIf { it.isNotBlank() }
+
         val savedGaming = prefs.getInt("gaming_mode", 0)
         val gamingRaw = if (isRoot) {
-            /* /proc/perfmgr/gaming_mode prints "gaming_mode: N" plus status
-             * lines; /sys/kernel/gaming_mode is a plain int. */
-            KernelNodes.parseKeyedInt(ShellUtils.readNode(KernelNodes.GAMING_MODE_PROC).orEmpty(), "gaming_mode")
-                ?: ShellUtils.fastRead(KernelNodes.GAMING_MODE_SYS)?.trim()?.toIntOrNull()
+            KernelNodes.parseKeyedInt(node(KernelNodes.GAMING_MODE_PROC).orEmpty(), "gaming_mode")
+                ?: node(KernelNodes.GAMING_MODE_SYS)?.trim()?.toIntOrNull()
                 ?: run {
-                    val boost = ShellUtils.readNode(KernelNodes.BOOST_FG)?.trim()?.toIntOrNull()
+                    val boost = node(KernelNodes.BOOST_FG)?.trim()?.toIntOrNull()
                     if (boost != null) {
                         boostForMode.entries.minByOrNull { kotlin.math.abs(it.value - boost) }?.key?.value
                             ?: savedGaming
@@ -99,7 +135,7 @@ object TuningRepository {
         }
 
         val kprofilesRaw = if (isRoot) {
-            ShellUtils.fastRead(KernelNodes.KPROFILES_MODE)?.trim()?.toIntOrNull()
+            node(KernelNodes.KPROFILES_MODE)?.trim()?.toIntOrNull()
                 ?: when (gamingRaw) {
                     -1 -> 1
                     1, 2 -> 3
@@ -117,12 +153,12 @@ object TuningRepository {
         }
 
         val autoKp = if (isRoot) {
-            ShellUtils.fastRead(KernelNodes.KPROFILES_AUTO)?.trim() != "0"
+            node(KernelNodes.KPROFILES_AUTO)?.trim() != "0"
         } else prefs.getBoolean("auto_kp", true)
 
         val healthCalRaw = if (isRoot) {
-            ShellUtils.fastRead(KernelNodes.HEALTH_CALIBRATION_PROC)?.trim()?.toIntOrNull()
-                ?: ShellUtils.fastRead(KernelNodes.HEALTH_CALIBRATION_SYS)?.trim()?.toIntOrNull()
+            node(KernelNodes.HEALTH_CALIBRATION_PROC)?.trim()?.toIntOrNull()
+                ?: node(KernelNodes.HEALTH_CALIBRATION_SYS)?.trim()?.toIntOrNull()
                 ?: 1
         } else prefs.getInt("health_calibration_mode", 1)
 
@@ -136,7 +172,7 @@ object TuningRepository {
         val oppGuard = prefs.getBoolean("opp_voltage_guard", true)
 
         val healthSummary = if (isRoot) {
-            val status = ShellUtils.fastRead(KernelNodes.HEALTH_STATUS_PROC)?.trim().orEmpty()
+            val status = node(KernelNodes.HEALTH_STATUS_PROC)?.trim().orEmpty()
             if (status.isNotBlank()) {
                 val lines = status.lines()
                 val temp = lines.firstOrNull { it.startsWith("battery_temp_decic=") }?.substringAfter("=")?.toIntOrNull()?.div(10) ?: 32
@@ -146,166 +182,163 @@ object TuningRepository {
         } else "Calibrated (100% Health) • Watchdog Armed"
 
         val schedBore = if (isRoot) {
-            ShellUtils.fastRead(KernelNodes.SCHED_BORE_SYS)?.trim() == "1" ||
-            KernelNodes.parseKeyedInt(ShellUtils.readNode(KernelNodes.SCHED_BORE_PROC).orEmpty(), "sched_bore") == 1
+            node(KernelNodes.SCHED_BORE_SYS)?.trim() == "1" ||
+            KernelNodes.parseKeyedInt(node(KernelNodes.SCHED_BORE_PROC).orEmpty(), "sched_bore") == 1
         } else prefs.getBoolean("sched_bore", true)
 
         val burstPenalty = if (isRoot) {
-            ShellUtils.fastRead(KernelNodes.SCHED_BURST_PENALTY_SCALE)?.trim()?.toIntOrNull() ?: 1536
+            node(KernelNodes.SCHED_BURST_PENALTY_SCALE)?.trim()?.toIntOrNull() ?: 1536
         } else prefs.getInt("sched_burst_penalty_scale", 1536)
 
         val burstPenaltyOffset = if (isRoot) {
-            ShellUtils.fastRead(KernelNodes.SCHED_BURST_PENALTY_OFFSET)?.trim()?.toIntOrNull() ?: 24
+            node(KernelNodes.SCHED_BURST_PENALTY_OFFSET)?.trim()?.toIntOrNull() ?: 24
         } else prefs.getInt("sched_burst_penalty_offset", 24)
 
         val burstInheritType = if (isRoot) {
-            ShellUtils.fastRead(KernelNodes.SCHED_BURST_INHERIT_TYPE)?.trim()?.toIntOrNull() ?: 2
+            node(KernelNodes.SCHED_BURST_INHERIT_TYPE)?.trim()?.toIntOrNull() ?: 2
         } else prefs.getInt("sched_burst_inherit_type", 2)
 
         val touchBoost = if (isRoot) {
-            ShellUtils.fastRead(KernelNodes.TOUCH_GAME_MODE_PROC) == "1" ||
+            node(KernelNodes.TOUCH_GAME_MODE_PROC) == "1" ||
             KernelNodes.parseUsrtchField(
-                ShellUtils.readNode(KernelNodes.USRTCH).orEmpty(),
+                node(KernelNodes.USRTCH).orEmpty(),
                 "enable"
             )?.let { it == 1 } ?: false
         } else prefs.getBoolean("touch_boost", false)
 
         val touchSensitivity = if (isRoot && isSupported(TuningFeature.TOUCH_SENSITIVITY)) {
-            ShellUtils.fastRead(KernelNodes.TOUCH_SENSITIVITY_PROC)?.toIntOrNull()
+            node(KernelNodes.TOUCH_SENSITIVITY_PROC)?.toIntOrNull()
                 ?: prefs.getInt("touch_sensitivity", 0)
         } else prefs.getInt("touch_sensitivity", 0)
 
         // Battery guard & charging controls
         val fastCharge = if (isRoot && isSupported(TuningFeature.FAST_CHARGE)) {
-            ShellUtils.fastRead(KernelNodes.FAST_CHARGE_PROC) != "0"
+            node(KernelNodes.FAST_CHARGE_PROC) != "0"
         } else prefs.getBoolean("fast_charge", true)
 
         val bypass = if (isRoot && isSupported(TuningFeature.BYPASS_CHARGING)) {
-            ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_PROC) == "1" ||
-            ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_SYS) == "1"
+            node(KernelNodes.BATTERY_BYPASS_PROC) == "1" ||
+            node(KernelNodes.BATTERY_BYPASS_SYS) == "1"
         } else prefs.getBoolean("bypass_charging", false)
 
         val chargeLimit = if (isRoot && isSupported(TuningFeature.CHARGE_LIMIT)) {
-            ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_PROC)?.toIntOrNull()
-                ?: ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_SYS)?.toIntOrNull()
+            node(KernelNodes.BATTERY_LIMIT_PROC)?.toIntOrNull()
+                ?: node(KernelNodes.BATTERY_LIMIT_SYS)?.toIntOrNull()
                 ?: prefs.getInt("charge_limit", 100)
         } else prefs.getInt("charge_limit", 100)
 
         val thermalGuard = if (isRoot && isSupported(TuningFeature.THERMAL_GUARD)) {
-            ShellUtils.fastRead(KernelNodes.THERMAL_GUARD_SYS) == "1"
+            node(KernelNodes.THERMAL_GUARD_SYS) == "1"
         } else prefs.getBoolean("thermal_guard", false)
 
         val tempLimit = if (isRoot && isSupported(TuningFeature.THERMAL_GUARD)) {
-            ShellUtils.fastRead(KernelNodes.TEMP_LIMIT_SYS)?.toIntOrNull()
+            node(KernelNodes.TEMP_LIMIT_SYS)?.toIntOrNull()
                 ?: prefs.getInt("temp_limit", 48)
         } else prefs.getInt("temp_limit", 48)
 
         // xswapd is a MIUI/HyperOS userspace daemon.
         val xswapdEnable = if (isRoot && isSupported(TuningFeature.XSWAPD)) {
-            ShellUtils.fastRead("/dev/memcg/memory.xswapd.enable") != "0"
+            node("/dev/memcg/memory.xswapd.enable") != "0"
         } else prefs.getBoolean("xswapd_enable", false)
 
         val savedXswapdQuota = prefs.getLong("xswapd_quota", 1024L)
         val xswapdQuota = if (isRoot && isSupported(TuningFeature.XSWAPD)) {
-            (ShellUtils.fastRead("/dev/memcg/memory.xswapd.quota")?.toLongOrNull()
+            (node("/dev/memcg/memory.xswapd.quota")?.toLongOrNull()
                 ?: (savedXswapdQuota * 1024 * 1024)) / (1024 * 1024)
         } else savedXswapdQuota
 
         // Touch, display and haptics
         val dt2w = if (isRoot && isSupported(TuningFeature.DT2W)) {
-            ShellUtils.fastRead(KernelNodes.DT2W_PROC) == "1"
+            node(KernelNodes.DT2W_PROC) == "1"
         } else prefs.getBoolean("dt2w", false)
 
         val trueTone = if (isRoot && isSupported(TuningFeature.TRUE_TONE)) {
-            ShellUtils.fastRead(KernelNodes.TRUE_TONE_SYS) == "1" ||
-            KernelNodes.parseKeyedInt(ShellUtils.readNode(KernelNodes.TRUE_TONE_PROC).orEmpty(), "true_tone") == 1
+            node(KernelNodes.TRUE_TONE_SYS) == "1" ||
+            KernelNodes.parseKeyedInt(node(KernelNodes.TRUE_TONE_PROC).orEmpty(), "true_tone") == 1
         } else prefs.getBoolean("true_tone", false)
 
         val colorMode = if (isRoot && isSupported(TuningFeature.COLOR_MODE)) {
-            KernelNodes.parseKeyedInt(ShellUtils.readNode(KernelNodes.COLOR_MODE_PROC).orEmpty(), "color_mode")
-                ?: ShellUtils.fastRead(KernelNodes.COLOR_MODE_SYS)?.trim()?.toIntOrNull()
+            KernelNodes.parseKeyedInt(node(KernelNodes.COLOR_MODE_PROC).orEmpty(), "color_mode")
+                ?: node(KernelNodes.COLOR_MODE_SYS)?.trim()?.toIntOrNull()
                 ?: prefs.getInt("color_mode", 0)
         } else prefs.getInt("color_mode", 0)
 
         val hbmMode = if (isRoot && isSupported(TuningFeature.HBM_MODE)) {
-            KernelNodes.parseKeyedInt(ShellUtils.readNode(KernelNodes.HBM_MODE_PROC).orEmpty(), "hbm_mode")
+            KernelNodes.parseKeyedInt(node(KernelNodes.HBM_MODE_PROC).orEmpty(), "hbm_mode")
                 ?: prefs.getInt("hbm_mode", 0)
         } else prefs.getInt("hbm_mode", 0)
 
         val vibrator = if (isRoot && isSupported(TuningFeature.VIBRATOR_STRENGTH)) {
-            val level = ShellUtils.fastRead(KernelNodes.VIBRATOR_STRENGTH_PROC)?.toIntOrNull()
-                ?: ShellUtils.fastRead(KernelNodes.VIBRATOR_VMAX)?.toIntOrNull()
+            val level = node(KernelNodes.VIBRATOR_STRENGTH_PROC)?.toIntOrNull()
+                ?: node(KernelNodes.VIBRATOR_VMAX)?.toIntOrNull()
             if (level != null) (level * 100 / 13).coerceIn(0, 100) else prefs.getInt("vibrator_strength", 85)
         } else prefs.getInt("vibrator_strength", 85)
 
         val hpGain = if (isRoot && isSupported(TuningFeature.HEADPHONE_GAIN)) {
-            ShellUtils.fastRead(KernelNodes.HEADPHONE_GAIN_PROC)?.toIntOrNull()
+            node(KernelNodes.HEADPHONE_GAIN_PROC)?.toIntOrNull()
                 ?: prefs.getInt("headphone_gain", 0)
         } else prefs.getInt("headphone_gain", 0)
 
         val micGain = if (isRoot && isSupported(TuningFeature.MIC_GAIN)) {
-            ShellUtils.fastRead(KernelNodes.MIC_GAIN_PROC)?.toIntOrNull()
+            node(KernelNodes.MIC_GAIN_PROC)?.toIntOrNull()
                 ?: prefs.getInt("mic_gain", 0)
         } else prefs.getInt("mic_gain", 0)
 
         val activeMic = if (isRoot && isSupported(TuningFeature.ACTIVE_MIC)) {
-            ShellUtils.fastRead(KernelNodes.ACTIVE_MIC_PROC)?.toIntOrNull()
-                ?: ShellUtils.fastRead(KernelNodes.ACTIVE_MIC_SYS)?.toIntOrNull()
+            node(KernelNodes.ACTIVE_MIC_PROC)?.toIntOrNull()
+                ?: node(KernelNodes.ACTIVE_MIC_SYS)?.toIntOrNull()
                 ?: prefs.getInt("active_mic_mode", 0)
         } else prefs.getInt("active_mic_mode", 0)
 
         val wakelock = if (isRoot && isSupported(TuningFeature.WAKELOCK_BLOCKER)) {
-            ShellUtils.fastRead(KernelNodes.WAKELOCK_BLOCKER_PROC) == "1"
+            node(KernelNodes.WAKELOCK_BLOCKER_PROC) == "1"
         } else prefs.getBoolean("wakelock_blocker", false)
 
         val fsync = if (isRoot && isSupported(TuningFeature.DYNAMIC_FSYNC)) {
-            ShellUtils.fastRead(KernelNodes.DYNAMIC_FSYNC_PROC) == "1"
+            node(KernelNodes.DYNAMIC_FSYNC_PROC) == "1"
         } else prefs.getBoolean("dynamic_fsync", false)
 
         val driveDroid = if (isRoot && isSupported(TuningFeature.DRIVEDROID)) {
-            ShellUtils.fastRead(KernelNodes.DRIVEDROID_CDROM_PROC) == "1" ||
-            ShellUtils.fastRead(KernelNodes.DRIVEDROID_CDROM_SYS) == "1" ||
-            ShellUtils.fastRead(KernelNodes.DRIVEDROID_LUN0_SYS) == "1"
+            node(KernelNodes.DRIVEDROID_CDROM_PROC) == "1" ||
+            node(KernelNodes.DRIVEDROID_CDROM_SYS) == "1" ||
+            node(KernelNodes.DRIVEDROID_LUN0_SYS) == "1"
         } else prefs.getBoolean("drivedroid_cdrom", false)
 
-        val readAhead = if (isRoot) {
-            blockQueues().firstNotNullOfOrNull { ShellUtils.readNode("$it/read_ahead_kb") }?.toIntOrNull()
-                ?: prefs.getInt("read_ahead_kb", 256)
+        val readAhead = if (isRoot && firstQueue != null) {
+            node("$firstQueue/read_ahead_kb")?.toIntOrNull() ?: prefs.getInt("read_ahead_kb", 256)
         } else prefs.getInt("read_ahead_kb", 256)
 
-        val schedulerRaw = blockQueues().firstNotNullOfOrNull { ShellUtils.readNode("$it/scheduler") }.orEmpty()
+        val schedulerRaw = if (isRoot && firstQueue != null) node("$firstQueue/scheduler").orEmpty() else ""
         val (activeScheduler, schedulerOptions) = KernelNodes.parseSelection(schedulerRaw)
 
-        val governorRaw = KernelNodes.cpufreqPolicies()
-            .firstNotNullOfOrNull { ShellUtils.readNode("$it/cpufreq/scaling_governor") }
-            .orEmpty()
+        val governorRaw = if (isRoot && firstCpuPolicy != null) node("$firstCpuPolicy/cpufreq/scaling_governor").orEmpty() else ""
         val (activeGovernor, governorOptions) = KernelNodes.parseSelection(governorRaw)
 
-        val zramSize = ShellUtils.readNode("/sys/block/zram0/disksize")?.trim()?.toLongOrNull()?.div(1024 * 1024) ?: 0L
+        val zramSize = node("/sys/block/zram0/disksize")?.trim()?.toLongOrNull()?.div(1024 * 1024) ?: 0L
 
         val camera4k60 = if (isRoot && isSupported(TuningFeature.CAMERA_4K60)) {
-            ShellUtils.fastRead(KernelNodes.CAMERA_4K60_PROC) == "1" ||
-            ShellUtils.fastRead(KernelNodes.CAMERA_4K60_SYS) == "1"
+            node(KernelNodes.CAMERA_4K60_PROC) == "1" ||
+            node(KernelNodes.CAMERA_4K60_SYS) == "1"
         } else prefs.getBoolean("camera_4k60", false)
 
         val slog3 = if (isRoot && isSupported(TuningFeature.CAMERA_SLOG3)) {
-            ShellUtils.fastRead(KernelNodes.CAMERA_SLOG3_PROC) == "1" ||
-            ShellUtils.fastRead(KernelNodes.CAMERA_SLOG3_SYS) == "1"
+            node(KernelNodes.CAMERA_SLOG3_PROC) == "1" ||
+            node(KernelNodes.CAMERA_SLOG3_SYS) == "1"
         } else prefs.getBoolean("camera_slog3", false)
 
         val torchBrightness = if (isRoot && isSupported(TuningFeature.TORCH_BRIGHTNESS)) {
-            ShellUtils.fastRead(KernelNodes.TORCH_BRIGHTNESS_PROC)?.toIntOrNull()
-                ?: ShellUtils.fastRead(KernelNodes.TORCH_BRIGHTNESS_SYS)?.toIntOrNull()
+            node(KernelNodes.TORCH_BRIGHTNESS_PROC)?.toIntOrNull()
+                ?: node(KernelNodes.TORCH_BRIGHTNESS_SYS)?.toIntOrNull()
                 ?: prefs.getInt("torch_brightness", 0)
         } else prefs.getInt("torch_brightness", 0)
 
         val tcpCong = if (isRoot && isSupported(TuningFeature.TCP_CONGESTION)) {
-            ShellUtils.fastRead(KernelNodes.TCP_CONGESTION_CONTROL)?.trim()
+            node(KernelNodes.TCP_CONGESTION_CONTROL)?.trim()
                 ?: prefs.getString("tcp_congestion", "bbr") ?: "bbr"
         } else prefs.getString("tcp_congestion", "bbr") ?: "bbr"
 
         val availableTcp = if (isRoot) {
-            ShellUtils.fastRead(KernelNodes.TCP_AVAILABLE_CONGESTION)?.trim()?.split(Regex("\\s+"))?.filter { it.isNotEmpty() }
+            node(KernelNodes.TCP_AVAILABLE_CONGESTION)?.trim()?.split(Regex("\\s+"))?.filter { it.isNotEmpty() }
                 ?: listOf("bbr", "westwood", "cubic")
         } else listOf("bbr", "westwood", "cubic")
 
@@ -314,29 +347,29 @@ object TuningRepository {
         } else prefs.getBoolean("ttl_64", false)
 
         val wqPower = if (isRoot && isSupported(TuningFeature.WORKQUEUE_POWER_EFFICIENT)) {
-            val r = ShellUtils.fastRead(KernelNodes.WQ_POWER_EFFICIENT)?.trim()
+            val r = node(KernelNodes.WQ_POWER_EFFICIENT)?.trim()
             r == "Y" || r == "1" || r == "y"
         } else prefs.getBoolean("wq_power_efficient", true)
 
         val waltCpu = if (isRoot && isSupported(TuningFeature.WALT_CPU_UTIL)) {
-            ShellUtils.fastRead(KernelNodes.SCHED_WALT_CPU_UTIL)?.trim() == "1"
+            node(KernelNodes.SCHED_WALT_CPU_UTIL)?.trim() == "1"
         } else prefs.getBoolean("walt_cpu_util", false)
 
         val waltTask = if (isRoot && isSupported(TuningFeature.WALT_TASK_UTIL)) {
-            ShellUtils.fastRead(KernelNodes.SCHED_WALT_TASK_UTIL)?.trim() == "1"
+            node(KernelNodes.SCHED_WALT_TASK_UTIL)?.trim() == "1"
         } else prefs.getBoolean("walt_task_util", false)
 
         val schedCstate = if (isRoot && isSupported(TuningFeature.SCHED_CSTATE_AWARE)) {
-            ShellUtils.fastRead(KernelNodes.SCHED_CSTATE_AWARE)?.trim() == "1"
+            node(KernelNodes.SCHED_CSTATE_AWARE)?.trim() == "1"
         } else prefs.getBoolean("sched_cstate_aware", false)
 
         val vmSwappiness = if (isRoot && isSupported(TuningFeature.VM_SWAPPINESS)) {
-            ShellUtils.fastRead(KernelNodes.VM_SWAPPINESS)?.trim()?.toIntOrNull()
+            node(KernelNodes.VM_SWAPPINESS)?.trim()?.toIntOrNull()
                 ?: prefs.getInt("vm_swappiness", 100)
         } else prefs.getInt("vm_swappiness", 100)
 
         val vfsPressure = if (isRoot) {
-            ShellUtils.fastRead(KernelNodes.VM_VFS_CACHE_PRESSURE)?.trim()?.toIntOrNull() ?: 100
+            node(KernelNodes.VM_VFS_CACHE_PRESSURE)?.trim()?.toIntOrNull() ?: 100
         } else 100
 
         TuningFeatures(

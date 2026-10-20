@@ -61,16 +61,32 @@ object HardwareRepository {
     }
 
     suspend fun getHardwareStats(): HardwareStats = withContext(Dispatchers.IO) {
-        // 1. CPU Cores stats (Helio G90T Octa-Core: 0-5 Little, 6-7 Big)
+        // Collect telemetry in a single batched shell execution to prevent IPC overhead & UI lag
+        val statNodes = listOf(
+            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq",
+            "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq",
+            "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq",
+            "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq",
+            "/sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq",
+            "/sys/devices/system/cpu/cpu5/cpufreq/scaling_cur_freq",
+            "/sys/devices/system/cpu/cpu6/cpufreq/scaling_cur_freq",
+            "/sys/devices/system/cpu/cpu7/cpufreq/scaling_cur_freq",
+            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor",
+            "/sys/kernel/ged/hal/current_freqency",
+            "/sys/kernel/ged/hal/gpu_utilization",
+            "/proc/meminfo",
+            "/sys/block/zram0/mm_stat",
+            "/sys/block/zram0/disksize"
+        )
+        val batch = ShellUtils.batchRead(statNodes)
+
+        // 1. CPU Cores stats (Helio G90T Octa-Core: 0-5 Little A55, 6-7 Big A76)
         val cores = mutableListOf<CpuCoreStat>()
         for (i in 0 until 8) {
             val freqPath = "/sys/devices/system/cpu/cpu$i/cpufreq/scaling_cur_freq"
-            val minPath = "/sys/devices/system/cpu/cpu$i/cpufreq/scaling_min_freq"
-            val maxPath = "/sys/devices/system/cpu/cpu$i/cpufreq/scaling_max_freq"
-
-            val curFreq = (ShellUtils.fastRead(freqPath)?.toIntOrNull() ?: (if (i >= 6) 1085000 else 1400000)) / 1000
-            val minFreq = (ShellUtils.fastRead(minPath)?.toIntOrNull() ?: 400000) / 1000
-            val maxFreq = (ShellUtils.fastRead(maxPath)?.toIntOrNull() ?: (if (i >= 6) 2050000 else 2000000)) / 1000
+            val curFreq = (batch[freqPath]?.toIntOrNull() ?: (if (i >= 6) 1085000 else 1400000)) / 1000
+            val minFreq = if (i >= 6) 800 else 400
+            val maxFreq = if (i >= 6) 2050 else 2000
 
             cores.add(
                 CpuCoreStat(
@@ -83,30 +99,23 @@ object HardwareRepository {
             )
         }
 
-        val governor = ShellUtils.fastRead("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor") ?: "schedutil"
+        val governor = batch["/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"] ?: "schedutil"
 
         // 2. GPU Frequency & Load (MediaTek Mali-G76 MC4 via GED HAL)
-        // /sys/kernel/ged/hal/current_freqency exposes "<idx> <kHz>"
-        // /sys/kernel/ged/hal/gpu_utilization exposes "<loading> <block> <idle>"
-        val gpuFreqKhz = ShellUtils.fastRead("/sys/kernel/ged/hal/current_freqency")
+        val gpuFreqKhz = batch["/sys/kernel/ged/hal/current_freqency"]
             ?.trim()?.split(Regex("\\s+"))?.getOrNull(1)?.toLongOrNull()
         val gpuFreq = if (gpuFreqKhz != null) {
             (gpuFreqKhz / 1000).toInt()
         } else {
-            val legacy = ShellUtils.fastRead("/sys/kernel/ged/hal/gpu_cur_freq")
-                ?: ShellUtils.fastRead("/sys/class/misc/mali0/device/cur_freq")
-            val raw = legacy?.toIntOrNull()
-            if (raw != null && raw > 100000) raw / 1000 else (raw ?: 800)
+            800
         }
 
-        val gpuLoadVal = ShellUtils.fastRead("/sys/kernel/ged/hal/gpu_utilization")
+        val gpuLoadVal = batch["/sys/kernel/ged/hal/gpu_utilization"]
             ?.trim()?.split(Regex("\\s+"))?.firstOrNull()?.toIntOrNull()
-        val gpuLoad = gpuLoadVal?.coerceIn(0, 100)
-            ?: ShellUtils.fastRead("/sys/kernel/ged/hal/gpu_loading")?.toIntOrNull()?.coerceIn(0, 100)
-            ?: 12
+        val gpuLoad = gpuLoadVal?.coerceIn(0, 100) ?: 12
 
         // 3. RAM & ZRAM (from /proc/meminfo)
-        val meminfo = ShellUtils.fastRead("/proc/meminfo") ?: ""
+        val meminfo = batch["/proc/meminfo"] ?: ""
         var ramTotal = 0L
         var ramFree = 0L
         var ramAvailable = 0L
@@ -120,17 +129,12 @@ object HardwareRepository {
         }
         val ramUsed = if (ramAvailable > 0) ramTotal - ramAvailable else ramTotal - ramFree
 
-        // Stock zram exposes one mm_stat line, not separate mem_used_total /
-        // orig_data_size files (those are a vendor ZRAM+ extension absent from
-        // this kernel). Fields are space separated, in bytes:
-        // orig_data_size compr_data_size mem_used_total mem_limit
-        // max_used_pages same_pages pages_compacted huge_pages
-        val mmStat = ShellUtils.fastRead("/sys/block/zram0/mm_stat")
+        val mmStat = batch["/sys/block/zram0/mm_stat"]
             ?.trim()
             ?.split(Regex("\\s+"))
             .orEmpty()
 
-        val zramDisksize = (ShellUtils.fastRead("/sys/block/zram0/disksize")?.toLongOrNull() ?: 0L) / (1024 * 1024)
+        val zramDisksize = (batch["/sys/block/zram0/disksize"]?.toLongOrNull() ?: 0L) / (1024 * 1024)
         val zramOrig = mmStat.getOrNull(0)?.toLongOrNull() ?: 0L
         val zramUsed = mmStat.getOrNull(2)?.toLongOrNull() ?: 0L
         val zramRatio = if (zramUsed > 0) zramOrig.toFloat() / zramUsed.toFloat() else 1.0f

@@ -32,7 +32,7 @@ data class CustomColorProfile(
             saturation = json.optInt("saturation", 4).coerceIn(0, 9),
             contrast = json.optInt("contrast", 4).coerceIn(0, 9),
             brightness = json.optInt("brightness", 4).coerceIn(0, 9),
-            saturationAdjustment = json.optInt("saturationAdjustment", 0).coerceIn(0, 9),
+            saturationAdjustment = json.optInt("saturationAdjustment", 0).coerceIn(0, 18),
             isPreset = json.optBoolean("isPreset", false)
         )
 
