@@ -3,6 +3,7 @@ package com.pox.kernelmanager.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -11,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -489,13 +491,173 @@ fun FeaturesScreen(
             )
 
             FeatureSwitchCard(
-                title = "18W Fast Charging",
-                description = "Enables hardware fast charging negotiation on AC chargers (/proc/perfmgr/fast_charge)",
+                title = "Hardware Fast Charging",
+                description = "Hardware fast charging negotiation with custom wattage locking (/proc/perfmgr/fast_charge)",
                 isChecked = uiState.features.fastChargeEnabled,
                 onCheckedChange = { viewModel.toggleFastCharge(it) },
                 icon = Icons.Default.FlashOn,
                 enabled = uiState.features.isSupported(TuningFeature.FAST_CHARGE)
             )
+
+            if (uiState.features.fastChargeEnabled) {
+                var wattInputText by remember(uiState.features.chargeWatt) {
+                    mutableStateOf(uiState.features.chargeWatt.toString())
+                }
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Charging Wattage Locking",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Text(
+                                    text = "${uiState.features.chargeWatt}W Locked",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = "Locks charging power to this exact wattage on dedicated AC/wall chargers (DCP/PE). On USB-PD, requests matching power profile.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        OutlinedTextField(
+                            value = wattInputText,
+                            onValueChange = { input ->
+                                val filtered = input.filter { it.isDigit() }.take(3)
+                                wattInputText = filtered
+                                val parsed = filtered.toIntOrNull()
+                                if (parsed != null && parsed in 5..120) {
+                                    viewModel.setChargeWatt(parsed)
+                                }
+                            },
+                            label = { Text("Target Wattage (5W - 90W+)") },
+                            suffix = { Text("W") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Text(
+                            text = "Quick Presets",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(10, 18, 30, 45, 67, 90).forEach { preset ->
+                                FilterChip(
+                                    selected = uiState.features.chargeWatt == preset,
+                                    onClick = {
+                                        wattInputText = preset.toString()
+                                        viewModel.setChargeWatt(preset)
+                                    },
+                                    label = { Text("${preset}W", style = MaterialTheme.typography.labelSmall) }
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        Text(
+                            text = "USB-PD Negotiation Limits",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Sets adapter negotiation boundaries when connected to a USB-PD charger.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Text(
+                            text = "Min PD: ${uiState.features.pdMinWatt}W",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(5, 9, 15, 18).forEach { preset ->
+                                FilterChip(
+                                    selected = uiState.features.pdMinWatt == preset,
+                                    onClick = { viewModel.setPdMinWatt(preset) },
+                                    label = { Text("${preset}W", style = MaterialTheme.typography.labelSmall) }
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = "Max PD: ${uiState.features.pdMaxWatt}W",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(18, 30, 45, 65, 90).forEach { preset ->
+                                FilterChip(
+                                    selected = uiState.features.pdMaxWatt == preset,
+                                    onClick = { viewModel.setPdMaxWatt(preset) },
+                                    label = { Text("${preset}W", style = MaterialTheme.typography.labelSmall) }
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "⚡ Non-PD Chargers: Power is locked strictly at ${uiState.features.chargeWatt}W.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "🛡️ PC Host Ports: Locked at 500mA (USB 2.0 SDP) to prevent motherboard port trip.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             FeatureSwitchCard(
                 title = "Direct-Power Bypass Mode",

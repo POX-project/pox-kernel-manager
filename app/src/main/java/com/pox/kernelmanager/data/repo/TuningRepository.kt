@@ -83,7 +83,8 @@ object TuningRepository {
             KernelNodes.SCHED_BORE_SYS, KernelNodes.SCHED_BORE_PROC,
             KernelNodes.SCHED_BURST_PENALTY_SCALE, KernelNodes.SCHED_BURST_PENALTY_OFFSET, KernelNodes.SCHED_BURST_INHERIT_TYPE,
             KernelNodes.TOUCH_GAME_MODE_PROC, KernelNodes.USRTCH, KernelNodes.TOUCH_SENSITIVITY_PROC,
-            KernelNodes.FAST_CHARGE_PROC, KernelNodes.BATTERY_BYPASS_PROC, KernelNodes.BATTERY_BYPASS_SYS,
+            KernelNodes.FAST_CHARGE_PROC, KernelNodes.CHARGE_WATT_PROC, KernelNodes.PD_MIN_WATT_PROC, KernelNodes.PD_MAX_WATT_PROC,
+            KernelNodes.BATTERY_BYPASS_PROC, KernelNodes.BATTERY_BYPASS_SYS,
             KernelNodes.BATTERY_LIMIT_PROC, KernelNodes.BATTERY_LIMIT_SYS,
             KernelNodes.THERMAL_GUARD_SYS, KernelNodes.TEMP_LIMIT_SYS,
             "/dev/memcg/memory.xswapd.enable", "/dev/memcg/memory.xswapd.quota",
@@ -212,9 +213,26 @@ object TuningRepository {
         } else prefs.getInt("touch_sensitivity", 0)
 
         // Battery guard & charging controls
-        val fastCharge = if (isRoot && isSupported(TuningFeature.FAST_CHARGE)) {
-            node(KernelNodes.FAST_CHARGE_PROC) != "0"
-        } else prefs.getBoolean("fast_charge", true)
+        val fastChargeRaw = if (isRoot && isSupported(TuningFeature.FAST_CHARGE)) {
+            node(KernelNodes.FAST_CHARGE_PROC)?.toIntOrNull()
+        } else null
+        val fastCharge = (fastChargeRaw != null && fastChargeRaw > 0) || prefs.getBoolean("fast_charge", true)
+
+        val chargeWatt = if (isRoot) {
+            node(KernelNodes.CHARGE_WATT_PROC)?.toIntOrNull()
+                ?: if (fastChargeRaw != null && fastChargeRaw > 1) fastChargeRaw
+                else prefs.getInt("charge_watt", 18)
+        } else prefs.getInt("charge_watt", 18)
+
+        val pdMinWatt = if (isRoot) {
+            node(KernelNodes.PD_MIN_WATT_PROC)?.toIntOrNull()
+                ?: prefs.getInt("pd_min_watt", 5)
+        } else prefs.getInt("pd_min_watt", 5)
+
+        val pdMaxWatt = if (isRoot) {
+            node(KernelNodes.PD_MAX_WATT_PROC)?.toIntOrNull()
+                ?: prefs.getInt("pd_max_watt", 90)
+        } else prefs.getInt("pd_max_watt", 90)
 
         val bypass = if (isRoot && isSupported(TuningFeature.BYPASS_CHARGING)) {
             node(KernelNodes.BATTERY_BYPASS_PROC) == "1" ||
@@ -386,6 +404,9 @@ object TuningRepository {
             touchBoost240Hz = touchBoost,
             touchSensitivity = touchSensitivity,
             fastChargeEnabled = fastCharge,
+            chargeWatt = chargeWatt,
+            pdMinWatt = pdMinWatt,
+            pdMaxWatt = pdMaxWatt,
             bypassCharging = bypass,
             chargeLimitPercent = chargeLimit,
             thermalGuardEnabled = thermalGuard,
@@ -664,9 +685,46 @@ object TuningRepository {
         prefs.edit().putBoolean("fast_charge", enable).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Fast charge")
         if (!isSupported(TuningFeature.FAST_CHARGE)) return@withContext unsupported(TuningFeature.FAST_CHARGE)
+        val watt = prefs.getInt("charge_watt", 18)
         applyKernelWrites(
-            successLabel = if (enable) "18W Fast Charging enabled" else "Standard charging enforced (500mA USB / 10W AC)",
-            KernelNodes.FAST_CHARGE_PROC to if (enable) "1" else "0"
+            successLabel = if (enable) "Fast Charging locked at ${watt}W" else "Standard charging enforced (500mA USB / 10W AC)",
+            KernelNodes.FAST_CHARGE_PROC to if (enable) watt.toString() else "0"
+        )
+    }
+
+    suspend fun setChargeWatt(watt: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = watt.coerceIn(5, 120)
+        prefs.edit().putInt("charge_watt", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Charge Watt")
+        val fastChargeOn = prefs.getBoolean("fast_charge", true)
+        val writes = mutableListOf<Pair<String, String>>()
+        writes.add(KernelNodes.CHARGE_WATT_PROC to clamped.toString())
+        if (fastChargeOn) {
+            writes.add(KernelNodes.FAST_CHARGE_PROC to clamped.toString())
+        }
+        applyKernelWrites(
+            successLabel = "Hardware charging power locked at ${clamped}W",
+            *writes.toTypedArray()
+        )
+    }
+
+    suspend fun setPdMinWatt(watt: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = watt.coerceIn(5, 100)
+        prefs.edit().putInt("pd_min_watt", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("PD Min Watt")
+        applyKernelWrites(
+            successLabel = "USB-PD minimum negotiation power set to ${clamped}W",
+            KernelNodes.PD_MIN_WATT_PROC to clamped.toString()
+        )
+    }
+
+    suspend fun setPdMaxWatt(watt: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = watt.coerceIn(5, 100)
+        prefs.edit().putInt("pd_max_watt", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("PD Max Watt")
+        applyKernelWrites(
+            successLabel = "USB-PD maximum negotiation power set to ${clamped}W",
+            KernelNodes.PD_MAX_WATT_PROC to clamped.toString()
         )
     }
 

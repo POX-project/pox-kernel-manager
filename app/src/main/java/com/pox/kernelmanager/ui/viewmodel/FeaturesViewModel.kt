@@ -111,6 +111,12 @@ fun setZramSizeMb(sizeMb: Long) = apply { TuningRepository.setZramSizeMb(sizeMb)
 
     fun toggleFastCharge(enable: Boolean) = apply { TuningRepository.setFastCharge(enable) }
 
+    fun setChargeWatt(watt: Int) = apply { TuningRepository.setChargeWatt(watt) }
+
+    fun setPdMinWatt(watt: Int) = apply { TuningRepository.setPdMinWatt(watt) }
+
+    fun setPdMaxWatt(watt: Int) = apply { TuningRepository.setPdMaxWatt(watt) }
+
     fun toggleBypassCharging(enable: Boolean) = apply { TuningRepository.setBypassCharging(enable) }
 
     fun setChargeLimit(limitPercent: Int) = apply { TuningRepository.setChargeLimit(limitPercent) }

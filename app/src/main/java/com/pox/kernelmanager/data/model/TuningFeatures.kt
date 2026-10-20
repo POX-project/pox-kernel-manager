@@ -97,6 +97,9 @@ data class TuningFeatures(
 
     // Smart Battery Guard & Bypass
     val fastChargeEnabled: Boolean = true,
+    val chargeWatt: Int = 18,
+    val pdMinWatt: Int = 5,
+    val pdMaxWatt: Int = 90,
     val bypassCharging: Boolean = false,
     val chargeLimitPercent: Int = 100,
     val thermalGuardEnabled: Boolean = false,

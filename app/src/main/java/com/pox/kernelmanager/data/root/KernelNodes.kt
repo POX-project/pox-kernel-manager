@@ -106,6 +106,9 @@ object KernelNodes {
     const val SCHED_BURST_CACHE_LIFETIME = "/sys/kernel/sched_burst_cache_lifetime"
 
     const val FAST_CHARGE_PROC = "/proc/perfmgr/fast_charge"
+    const val CHARGE_WATT_PROC = "/proc/perfmgr/charge_watt"
+    const val PD_MIN_WATT_PROC = "/proc/perfmgr/pd_min_watt"
+    const val PD_MAX_WATT_PROC = "/proc/perfmgr/pd_max_watt"
     const val BATTERY_BYPASS_PROC = "/proc/perfmgr/battery_bypass"
     const val BATTERY_BYPASS_SYS = "/sys/kernel/battery_protection/bypass_mode"
 
@@ -246,6 +249,9 @@ object KernelNodes {
         GAMING_MODE_PROC,
         GAMING_MODE_SYS,
         FAST_CHARGE_PROC,
+        CHARGE_WATT_PROC,
+        PD_MIN_WATT_PROC,
+        PD_MAX_WATT_PROC,
         BATTERY_BYPASS_PROC,
         BATTERY_BYPASS_SYS,
         BATTERY_LIMIT_PROC,
