@@ -114,25 +114,52 @@ object CustomProfilesRepository {
     suspend fun applyKprofile(profile: CustomKprofile): TuningApplyResult = withContext(Dispatchers.IO) {
         setActiveKprofileId(profile.id)
         // 1. Set Gaming Mode & Kprofiles Level to Custom
-        TuningRepository.setGamingMode(profile.gamingMode)
-        TuningRepository.setKprofilesMode(KprofilesLevel.CUSTOM)
-        // 2. Set Touch
-        TuningRepository.setTouchBoost(profile.touchGameMode)
-        TuningRepository.setTouchSensitivity(profile.touchSensitivity)
-        // 3. Set BORE Scheduler
-        TuningRepository.setSchedBore(profile.schedBore)
-        TuningRepository.setSchedBurstPenaltyScale(profile.schedBurstPenaltyScale)
-        TuningRepository.setSchedBurstPenaltyOffset(profile.schedBurstPenaltyOffset)
-        TuningRepository.setSchedBurstInheritType(profile.schedBurstInheritType)
-        // 4. Set Hardware Features
-        TuningRepository.setDynamicFsync(profile.dynamicFsync)
-        TuningRepository.setFastCharge(profile.fastCharge)
-        TuningRepository.setHealthCalibrationMode(profile.healthCalibration)
-        TuningRepository.setColorMode(profile.colorMode)
+        // 2. The kernel custom profile (kp_mode 4) applies the 10 tunables
+        //    from custom_params, so push them BEFORE activating mode 4 —
+        //    otherwise "Custom" would silently apply builtin defaults.
+        //
+        // Field order MUST match gaming_mode.c kprofiles_custom_proc_show:
+        // up_little_us down_little_us up_big_us down_big_us top_app_boost
+        // fg_boost gpu_boost dram_boost touch_boost rescue_opp
+        val customParams = listOf(
+            profile.schedutilUpLittleUs,
+            profile.schedutilDownLittleUs,
+            profile.schedutilUpBigUs,
+            profile.schedutilDownBigUs,
+            profile.topAppBoost,
+            profile.fgBoost,
+            if (profile.gpuBoost) 1 else 0,
+            if (profile.dramBoost) 1 else 0,
+            if (profile.touchGameMode) 1 else 0,
+            profile.rescueOpp
+        ).joinToString(" ")
 
+        val steps = listOf(
+            TuningRepository.setGamingMode(profile.gamingMode),
+            TuningRepository.setKprofilesCustomParams(customParams),
+            TuningRepository.setKprofilesMode(KprofilesLevel.CUSTOM),
+            // 3. Set Touch
+            TuningRepository.setTouchBoost(profile.touchGameMode),
+            TuningRepository.setTouchSensitivity(profile.touchSensitivity),
+            // 4. Set BORE Scheduler
+            TuningRepository.setSchedBore(profile.schedBore),
+            TuningRepository.setSchedBurstPenaltyScale(profile.schedBurstPenaltyScale),
+            TuningRepository.setSchedBurstPenaltyOffset(profile.schedBurstPenaltyOffset),
+            TuningRepository.setSchedBurstInheritType(profile.schedBurstInheritType),
+            // 5. Set Hardware Features
+            TuningRepository.setDynamicFsync(profile.dynamicFsync),
+            TuningRepository.setFastCharge(profile.fastCharge),
+            TuningRepository.setHealthCalibrationMode(profile.healthCalibration),
+            TuningRepository.setColorMode(profile.colorMode)
+        )
+
+        // The kernel write chain reports per-step truth; a profile that cannot
+        // reach the kernel must not claim a successful hardware apply.
+        val failed = steps.count { !it.isHardwareApplied }
         TuningApplyResult(
-            isHardwareApplied = true,
-            message = "Profile '${profile.name}' applied successfully"
+            isHardwareApplied = failed == 0,
+            message = if (failed == 0) "Profile '${profile.name}' applied successfully"
+            else "Profile '${profile.name}' applied with $failed of ${steps.size} kernel writes rejected - check root access and kernel build"
         )
     }
 }
