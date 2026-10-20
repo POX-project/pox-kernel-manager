@@ -42,6 +42,7 @@ fun UpdaterScreen(
                 onBack = onBack
             )
         },
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         modifier = modifier
     ) { paddingValues ->
         Column(

@@ -25,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pox.kernelmanager.ui.screens.DashboardScreen
 import com.pox.kernelmanager.ui.screens.DiagnosticsScreen
@@ -82,10 +83,16 @@ fun MainContent() {
         settingsSubScreen = SettingsSubScreen.MAIN
     }
 
+    val tokens = com.pox.kernelmanager.ui.theme.LocalThemeTokens.current
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = tokens.navBarBackground,
+                tonalElevation = if (tokens.isGlass) 0.dp else 4.dp
+            ) {
                 navItems.forEachIndexed { index, item ->
                     NavigationBarItem(
                         selected = selectedIndex == index,

@@ -1,5 +1,6 @@
 package com.pox.kernelmanager.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,6 +60,8 @@ fun DashboardScreen(
         }
     }
 
+    val tokens = com.pox.kernelmanager.ui.theme.LocalThemeTokens.current
+
     Scaffold(
         topBar = {
             PoxTopAppBar(
@@ -67,6 +70,7 @@ fun DashboardScreen(
                 isRefreshing = uiState.isLoading
             )
         },
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         modifier = modifier
     ) { paddingValues ->
         Column(
@@ -81,12 +85,16 @@ fun DashboardScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                shape = tokens.cardShape,
+                border = tokens.cardBorder,
+                colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
             ) {
-                Column(modifier = Modifier.padding(22.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(tokens.heroGradient)
+                ) {
+                    Column(modifier = Modifier.padding(22.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -179,6 +187,7 @@ fun DashboardScreen(
                     }
                 }
             }
+        }
 
             // Section: Battery & Charging Telemetry
             SectionHeader(
@@ -291,7 +300,9 @@ fun DashboardScreen(
         activeDetail?.let { detailType ->
             ModalBottomSheet(
                 onDismissRequest = { activeDetail = null },
-                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = tokens.cardBackground,
+                shape = tokens.cardShape
             ) {
                 Column(
                     modifier = Modifier

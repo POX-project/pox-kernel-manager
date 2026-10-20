@@ -115,11 +115,22 @@ fun PoxTheme(
         AppTheme.HYPEROS -> HyperosColorScheme
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = {
-            AppBackgroundContainer(content = content)
-        }
-    )
+    val tokens = when (theme) {
+        AppTheme.APPLE_LIQUID_GLASS -> appleLiquidGlassTokens
+        AppTheme.MATERIAL3_EXPRESSIVE -> material3ExpressiveTokens
+        AppTheme.MIUI -> miuiTokens
+        AppTheme.HYPEROS -> hyperosTokens
+    }
+
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalThemeTokens provides tokens
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = {
+                AppBackgroundContainer(content = content)
+            }
+        )
+    }
 }

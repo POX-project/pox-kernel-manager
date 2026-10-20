@@ -25,14 +25,10 @@ fun FeatureSwitchCard(
     enabled: Boolean = true
 ) {
     val haptic = LocalHapticFeedback.current
-    Card(
+    com.pox.kernelmanager.ui.theme.PoxCard(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 5.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+            .padding(horizontal = 16.dp, vertical = 5.dp)
     ) {
         Row(
             modifier = Modifier

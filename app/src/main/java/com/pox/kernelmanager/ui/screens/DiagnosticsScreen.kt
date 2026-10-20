@@ -70,6 +70,7 @@ fun DiagnosticsScreen(
                 onBack = onBack
             )
         },
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { paddingValues ->

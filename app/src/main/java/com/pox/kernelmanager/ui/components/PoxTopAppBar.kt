@@ -67,7 +67,7 @@ fun PoxTopAppBar(
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = com.pox.kernelmanager.ui.theme.LocalThemeTokens.current.topBarBackground,
             titleContentColor = MaterialTheme.colorScheme.onSurface
         )
     )

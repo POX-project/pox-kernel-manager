@@ -67,13 +67,19 @@ fun AppBackgroundContainer(
             }
         }
 
-        // Tint / Opacity Scrim to ensure complete readability across all themes
-        val scrimAlpha = (1f - bgConfig.opacity).coerceIn(0.1f, 0.95f)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background.copy(alpha = scrimAlpha))
-        )
+        // Tint / Opacity Scrim for custom images and solid colors
+        val scrimAlpha = when (bgConfig.type) {
+            BackgroundType.CUSTOM_IMAGE -> (1f - bgConfig.opacity).coerceIn(0f, 0.85f)
+            BackgroundType.SOLID_COLOR -> (1f - bgConfig.opacity).coerceIn(0f, 0.85f)
+            BackgroundType.THEME_DEFAULT -> 0f
+        }
+        if (scrimAlpha > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = scrimAlpha))
+            )
+        }
 
         content()
     }

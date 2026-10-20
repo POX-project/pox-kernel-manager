@@ -21,14 +21,10 @@ fun StatCard(
     progress: Float? = null,
     onClick: (() -> Unit)? = null
 ) {
-    Card(
-        onClick = onClick ?: {},
+    com.pox.kernelmanager.ui.theme.PoxCard(
+        onClick = onClick,
         enabled = onClick != null,
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier

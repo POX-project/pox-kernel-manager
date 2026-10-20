@@ -23,16 +23,12 @@ fun ChargingDetailCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
-    Card(
-        onClick = onClick ?: {},
+    com.pox.kernelmanager.ui.theme.PoxCard(
+        onClick = onClick,
         enabled = onClick != null,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+            .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
         Column(
             modifier = Modifier

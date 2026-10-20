@@ -61,6 +61,7 @@ fun FeaturesScreen(
                 isRefreshing = uiState.isLoading
             )
         },
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { paddingValues ->

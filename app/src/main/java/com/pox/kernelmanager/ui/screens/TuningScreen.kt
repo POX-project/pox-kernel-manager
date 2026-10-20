@@ -55,6 +55,7 @@ fun TuningScreen(
                 title = "Kernel Tuning"
             )
         },
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { paddingValues ->
@@ -230,14 +231,10 @@ private fun EasyModeView(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Preset Details Hero Card
-        Card(
+        com.pox.kernelmanager.ui.theme.PoxCard(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            )
+                .padding(horizontal = 16.dp)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -333,12 +330,16 @@ private fun EasyModeView(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
+                val tokens = com.pox.kernelmanager.ui.theme.LocalThemeTokens.current
                 Button(
                     onClick = { onApplyPreset(currentConfig) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = tokens.pillShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = tokens.themeAccent
+                    )
                 ) {
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
