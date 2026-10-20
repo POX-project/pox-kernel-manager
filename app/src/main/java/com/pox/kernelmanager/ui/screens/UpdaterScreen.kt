@@ -24,6 +24,7 @@ import com.pox.kernelmanager.ui.viewmodel.UpdaterViewModel
 @Composable
 fun UpdaterScreen(
     viewModel: UpdaterViewModel,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val updateState by viewModel.updateState.collectAsState()
@@ -37,7 +38,8 @@ fun UpdaterScreen(
             PoxTopAppBar(
                 title = "Kernel Updater",
                 onRefresh = { viewModel.checkForUpdates() },
-                isRefreshing = updateState is UpdateState.Checking
+                isRefreshing = updateState is UpdateState.Checking,
+                onBack = onBack
             )
         },
         modifier = modifier

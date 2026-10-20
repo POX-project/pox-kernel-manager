@@ -5,4 +5,9 @@
     <string name="updater">Updater</string>
     <string name="diagnostics">Diagnostics</string>
     <string name="tile_active_mic">Active Mic</string>
+    <string name="tile_begotorch">BegoTorch</string>
+    <string name="tile_pox_mode">Pox Mode</string>
+    <string name="tile_bypass_charging">Bypass Mode</string>
+    <string name="tile_fast_charge">Fast Charge</string>
+    <string name="settings">Settings</string>
 </resources>

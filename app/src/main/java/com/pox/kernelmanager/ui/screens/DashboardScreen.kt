@@ -7,13 +7,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -27,6 +25,14 @@ import com.pox.kernelmanager.ui.components.StatCard
 import com.pox.kernelmanager.ui.components.StatusBadge
 import com.pox.kernelmanager.ui.viewmodel.DashboardViewModel
 
+enum class DashboardDetailType {
+    KERNEL_INFO,
+    BATTERY_INFO,
+    CPU_INFO,
+    GPU_MEMORY_INFO
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel,
@@ -34,11 +40,8 @@ fun DashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
+    var activeDetail by remember { mutableStateOf<DashboardDetailType?>(null) }
 
-    // Root can be granted while the app is backgrounded, so re-probe on resume.
-    // The monitor loop is tied to this composable: it starts only while the
-    // Dashboard tab is visible and the activity is at least STARTED, and is
-    // cancelled on ON_PAUSE or when the composable is disposed.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner.lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
@@ -72,8 +75,9 @@ fun DashboardScreen(
                 .padding(paddingValues)
                 .verticalScroll(scrollState)
         ) {
-            // Hero Card: Kernel & Device Overview (Expressive 28dp M3 Surface)
+            // Hero Card: Kernel & Device Overview
             Card(
+                onClick = { activeDetail = DashboardDetailType.KERNEL_INFO },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
@@ -105,8 +109,6 @@ fun DashboardScreen(
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.primary
                         ) {
-                            // Read from BuildConfig rather than a literal, which had drifted from
-                            // app/build.gradle.kts and reported the wrong version.
                             Text(
                                 text = BuildConfig.VERSION_NAME,
                                 style = MaterialTheme.typography.labelMedium,
@@ -140,13 +142,10 @@ fun DashboardScreen(
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
-                    // Badges row
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        // UNKNOWN is a framework we could not identify, not a rooted device:
-                        // showing it as an active badge used to report a false positive.
                         StatusBadge(
                             text = uiState.deviceInfo.rootProvider.displayName,
                             isActive = uiState.deviceInfo.rootProvider.isRooted &&
@@ -164,6 +163,20 @@ fun DashboardScreen(
                             activeColor = MaterialTheme.colorScheme.tertiary
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Tap for Advanced Kernel Specs →",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
 
@@ -172,7 +185,10 @@ fun DashboardScreen(
                 title = "Battery & Charging Telemetry",
                 subtitle = "Hardware battery state, charging rates & direct bypass"
             )
-            ChargingDetailCard(stats = uiState.stats)
+            ChargingDetailCard(
+                stats = uiState.stats,
+                onClick = { activeDetail = DashboardDetailType.BATTERY_INFO }
+            )
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -199,7 +215,7 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Section: CPU Complex (Helio G90T 8-cores)
+            // Section: CPU Complex
             SectionHeader(
                 title = "CPU & Schedutil Complex",
                 subtitle = "2x Cortex-A76 Big Cores + 6x Cortex-A55 Little Cores"
@@ -219,6 +235,7 @@ fun DashboardScreen(
                     icon = Icons.Default.Speed,
                     subtitle = "Core 6, 7 • Max 2050 MHz",
                     progress = bigCoreFreq / 2050f,
+                    onClick = { activeDetail = DashboardDetailType.CPU_INFO },
                     modifier = Modifier.weight(1f)
                 )
                 StatCard(
@@ -227,6 +244,7 @@ fun DashboardScreen(
                     icon = Icons.Default.Memory,
                     subtitle = "Core 0..5 • Governor: ${uiState.stats.cpuGovernor}",
                     progress = littleCoreFreq / 2000f,
+                    onClick = { activeDetail = DashboardDetailType.CPU_INFO },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -250,6 +268,7 @@ fun DashboardScreen(
                     icon = Icons.Default.Games,
                     subtitle = "Load: ${uiState.stats.gpuLoadPercent}%",
                     progress = uiState.stats.gpuLoadPercent / 100f,
+                    onClick = { activeDetail = DashboardDetailType.GPU_MEMORY_INFO },
                     modifier = Modifier.weight(1f)
                 )
                 val ramUsed = uiState.stats.ramUsedMb
@@ -258,13 +277,134 @@ fun DashboardScreen(
                     title = "RAM / ZRAM",
                     value = "${ramUsed / 1024}G / ${ramTotal / 1024}G",
                     icon = Icons.Default.Storage,
-                    subtitle = "ZRAM: ${uiState.stats.zramUsedMb}M (Ratio: ${String.format("%.2f", uiState.stats.zramCompRatio)}x)",
+                    subtitle = "ZRAM: ${uiState.stats.zramUsedMb}M (${String.format("%.2f", uiState.stats.zramCompRatio)}x)",
                     progress = ramUsed.toFloat() / ramTotal.toFloat(),
+                    onClick = { activeDetail = DashboardDetailType.GPU_MEMORY_INFO },
                     modifier = Modifier.weight(1f)
                 )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+
+        // Advanced Modal BottomSheet for Kernel & Hardware Details
+        activeDetail?.let { detailType ->
+            ModalBottomSheet(
+                onDismissRequest = { activeDetail = null },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    when (detailType) {
+                        DashboardDetailType.KERNEL_INFO -> {
+                            Text(
+                                text = "Kernel & Hardware Architecture",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            DetailRow("Release (UTS_RELEASE)", uiState.deviceInfo.kernelRelease)
+                            DetailRow("Architecture", "ARM64 (aarch64 v8.2-A)")
+                            DetailRow("SoC Platform", "MediaTek Helio G90T (MT6785)")
+                            DetailRow("Device Codename", "begonia / begoniain")
+                            DetailRow("Kernel Edition", uiState.deviceInfo.kernelEdition)
+                            DetailRow("SELinux Policy", uiState.deviceInfo.selinuxStatus)
+                            DetailRow("Root Solution", uiState.deviceInfo.rootProvider.displayName)
+                            DetailRow("Sultan Debloat", "Active (CONFIG_SULTAN_DEBLOAT)")
+                            DetailRow("Dynamic Fsync", "Active (/proc/perfmgr/dynamic_fsync)")
+                            DetailRow("Wakelock Shield", "Active (/proc/perfmgr/wakelock_blocker)")
+                        }
+
+                        DashboardDetailType.BATTERY_INFO -> {
+                            Text(
+                                text = "Battery & Charging Subsystem",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            DetailRow("Battery Level", "${uiState.stats.batteryLevel}%")
+                            DetailRow("Battery Temperature", "${uiState.stats.batteryTempC}°C")
+                            DetailRow("Battery Voltage", "${uiState.stats.batteryVoltageMv} mV")
+                            DetailRow("Instant Current", "${uiState.stats.batteryCurrentMa} mA")
+                            DetailRow("Power Consumption / Rate", "${String.format("%.2f", uiState.stats.batteryWattageW)} W")
+                            DetailRow("Charging State", if (uiState.stats.isCharging) "Charging" else "Discharging")
+                            DetailRow("Hardware Bypass Mode", if (uiState.stats.isBypassActive) "ACTIVE (Power Port Only)" else "Inactive")
+                            DetailRow("Proc Battery Status", "/proc/perfmgr/battery_status")
+                            DetailRow("Bypass Node", "/sys/kernel/battery_protection/bypass_mode")
+                            DetailRow("Thermal Guard Trip", "/sys/kernel/battery_protection/temp_limit")
+                            DetailRow("PC USB SDP Limit", "Locked at 500mA (Motherboard Guard)")
+                        }
+
+                        DashboardDetailType.CPU_INFO -> {
+                            Text(
+                                text = "CPU Complex & Scheduler",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            DetailRow("Architecture", "Octa-Core Big.LITTLE (2x A76 + 6x A55)")
+                            DetailRow("Active Governor", uiState.stats.cpuGovernor)
+                            DetailRow("Schedutil Tune", "/sys/devices/system/cpu/cpufreq/schedutil")
+                            DetailRow("BORE Scheduler", "Burst-Oriented Response Enhancer Active")
+                            DetailRow("EAS Energy Model", "WALT & C-State Aware Active")
+                            DetailRow("OPP Voltage Guard", "Armed • Brownout & Freeze Shield Active")
+                            uiState.stats.cpuCores.forEach { core ->
+                                DetailRow("Core ${core.coreId} (${if (core.isBigCore) "Big A76" else "LITTLE A55"})", "${core.currentFreqMhz} MHz (${core.minFreqMhz}-${core.maxFreqMhz} MHz)")
+                            }
+                        }
+
+                        DashboardDetailType.GPU_MEMORY_INFO -> {
+                            Text(
+                                text = "GPU & Memory Compression",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            DetailRow("GPU Model", "ARM Mali-G76 MC4 (Bifrost)")
+                            DetailRow("GPU Frequency", "${uiState.stats.gpuFreqMhz} MHz")
+                            DetailRow("GPU Active Load", "${uiState.stats.gpuLoadPercent}%")
+                            DetailRow("Physical RAM", "${uiState.stats.ramUsedMb} MB / ${uiState.stats.ramTotalMb} MB")
+                            DetailRow("ZRAM Cushion", "${uiState.stats.zramUsedMb} MB")
+                            DetailRow("Compression Ratio", "${String.format("%.2f", uiState.stats.zramCompRatio)}x (zstd-percpu)")
+                            DetailRow("VM Swappiness", "/proc/sys/vm/swappiness (Tuned: 100)")
+                            DetailRow("VFS Cache Pressure", "/proc/sys/vm/vfs_cache_pressure (Tuned: 100)")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { activeDetail = null },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Close Details")
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }

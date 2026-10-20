@@ -33,10 +33,7 @@ fun FeaturesScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
-    var showCreateKprofileDialog by remember { mutableStateOf(false) }
-    var showCreateColorDialog by remember { mutableStateOf(false) }
 
     // Root can be granted, or a module installed, while the app is backgrounded,
     // so re-probe on resume or the stale result leaves everything greyed out.
@@ -67,10 +64,27 @@ fun FeaturesScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { paddingValues ->
+        FeaturesScreenContent(
+            viewModel = viewModel,
+            modifier = Modifier.padding(paddingValues)
+        )
+    }
+}
+
+@Composable
+fun FeaturesScreenContent(
+    viewModel: FeaturesViewModel,
+    modifier: Modifier = Modifier
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val scrollState = rememberScrollState()
+    var showCreateKprofileDialog by remember { mutableStateOf(false) }
+    var showCreateColorDialog by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
                 .verticalScroll(scrollState)
         ) {
             RootStatusBanner(
@@ -1402,20 +1416,20 @@ fun FeaturesScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
-    }
 
-    if (showCreateKprofileDialog) {
-        CreateKprofileDialog(
-            onDismiss = { showCreateKprofileDialog = false },
-            onSave = { viewModel.saveCustomKprofile(it) }
-        )
-    }
+        if (showCreateKprofileDialog) {
+            CreateKprofileDialog(
+                onDismiss = { showCreateKprofileDialog = false },
+                onSave = { viewModel.saveCustomKprofile(it) }
+            )
+        }
 
-    if (showCreateColorDialog) {
-        CreateColorProfileDialog(
-            onDismiss = { showCreateColorDialog = false },
-            onSave = { viewModel.saveCustomColorProfile(it) }
-        )
+        if (showCreateColorDialog) {
+            CreateColorProfileDialog(
+                onDismiss = { showCreateColorDialog = false },
+                onSave = { viewModel.saveCustomColorProfile(it) }
+            )
+        }
     }
 }
 

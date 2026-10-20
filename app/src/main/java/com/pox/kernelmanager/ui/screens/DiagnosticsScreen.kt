@@ -34,6 +34,7 @@ import com.pox.kernelmanager.ui.viewmodel.DiagnosticsViewModel
 @Composable
 fun DiagnosticsScreen(
     viewModel: DiagnosticsViewModel,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -65,7 +66,8 @@ fun DiagnosticsScreen(
         topBar = {
             PoxTopAppBar(
                 title = "Kernel Diagnostics",
-                onRefresh = { viewModel.loadDiagnostics() }
+                onRefresh = { viewModel.loadDiagnostics() },
+                onBack = onBack
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },

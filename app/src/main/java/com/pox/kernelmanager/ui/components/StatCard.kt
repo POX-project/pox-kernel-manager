@@ -18,9 +18,12 @@ fun StatCard(
     icon: ImageVector,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
-    progress: Float? = null
+    progress: Float? = null,
+    onClick: (() -> Unit)? = null
 ) {
     Card(
+        onClick = onClick ?: {},
+        enabled = onClick != null,
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(

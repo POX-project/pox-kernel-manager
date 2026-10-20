@@ -42,6 +42,8 @@ class FeaturesViewModel : ViewModel() {
         loadFeatures()
     }
 
+    fun refresh() = loadFeatures()
+
     fun loadFeatures() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)

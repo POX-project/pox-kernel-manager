@@ -6,6 +6,10 @@ import com.pox.kernelmanager.PoxApplication
 import com.pox.kernelmanager.data.model.GamingModeLevel
 import com.pox.kernelmanager.data.model.KprofilesLevel
 import com.pox.kernelmanager.data.model.HealthCalibrationMode
+import com.pox.kernelmanager.data.model.EasyModeTier
+import com.pox.kernelmanager.data.model.EasyModeProfile
+import com.pox.kernelmanager.data.model.EasyPresetConfig
+import com.pox.kernelmanager.data.model.EasyModePresets
 import com.pox.kernelmanager.data.model.TuningFeature
 import com.pox.kernelmanager.data.model.TuningFeatures
 import com.pox.kernelmanager.data.root.KernelNodes
@@ -1223,5 +1227,70 @@ object TuningRepository {
 
         if (applied.isHardwareApplied) applied
         else TuningApplyResult(cleared.isHardwareApplied, applied.message)
+    }
+
+    fun getActiveEasyTier(): EasyModeTier {
+        val name = prefs.getString("active_easy_tier", EasyModeTier.NORMAL.name)
+        return try {
+            EasyModeTier.valueOf(name ?: EasyModeTier.NORMAL.name)
+        } catch (e: Exception) {
+            EasyModeTier.NORMAL
+        }
+    }
+
+    fun getActiveEasyProfile(): EasyModeProfile {
+        val name = prefs.getString("active_easy_profile", EasyModeProfile.BALANCED.name)
+        return try {
+            EasyModeProfile.valueOf(name ?: EasyModeProfile.BALANCED.name)
+        } catch (e: Exception) {
+            EasyModeProfile.BALANCED
+        }
+    }
+
+    suspend fun applyEasyPreset(config: EasyPresetConfig): TuningApplyResult = withContext(Dispatchers.IO) {
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Preset: ${config.tier.title} - ${config.profile.title}")
+        prefs.edit()
+            .putString("active_easy_tier", config.tier.name)
+            .putString("active_easy_profile", config.profile.name)
+            .apply()
+
+        val gMode = when (config.gamingMode) {
+            -1 -> GamingModeLevel.POWERSAVE
+            1 -> GamingModeLevel.GAMING
+            2 -> GamingModeLevel.EXTREME
+            else -> GamingModeLevel.BALANCED
+        }
+        val kpMode = when (config.kprofileLevel) {
+            1 -> KprofilesLevel.BATTERY
+            2 -> KprofilesLevel.BALANCED
+            3 -> KprofilesLevel.PERFORMANCE
+            else -> KprofilesLevel.BALANCED
+        }
+        val healthMode = when (config.healthCalibration) {
+            1 -> HealthCalibrationMode.AUTO_ADAPTIVE
+            2 -> HealthCalibrationMode.PERF_GUARD
+            3 -> HealthCalibrationMode.LONGEVITY
+            else -> HealthCalibrationMode.AUTO_ADAPTIVE
+        }
+
+        setGamingMode(gMode)
+        setKprofilesMode(kpMode)
+        setSchedBore(config.schedBoreEnabled)
+        setSchedBurstPenaltyScale(config.burstPenaltyScale)
+        setSchedBurstPenaltyOffset(config.burstPenaltyOffset)
+        setSchedBurstInheritType(config.burstInheritType)
+        setTouchBoost(config.touchGameMode)
+        setTouchSensitivity(config.touchSensitivity)
+        setFastCharge(config.fastChargeEnabled)
+        setChargeWatt(config.chargeWatt)
+        setDynamicFsync(config.dynamicFsync)
+        setWakelockBlocker(config.wakelockBlocker)
+        setTrueTone(config.trueTone)
+        setHealthCalibrationMode(healthMode)
+
+        TuningApplyResult(
+            isHardwareApplied = true,
+            message = "Applied ${config.tier.title} (${config.profile.title}) Preset"
+        )
     }
 }

@@ -21,6 +21,7 @@ class PoxApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        com.pox.kernelmanager.data.learning.AdaptiveLearningManager.init(this)
 
         // Touching ShellUtils installs the libsu builder; pre-warm the root shell so
         // the first dashboard read does not pay for the su prompt.

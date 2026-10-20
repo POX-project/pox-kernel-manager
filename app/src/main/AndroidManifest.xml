@@ -35,6 +35,50 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <service
+            android:name=".service.BegoTorchTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_qs_torch"
+            android:label="@string/tile_begotorch"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".service.PoxModeTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_qs_mode"
+            android:label="@string/tile_pox_mode"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".service.BypassChargingTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_qs_bypass"
+            android:label="@string/tile_bypass_charging"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".service.FastChargeTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_qs_fastcharge"
+            android:label="@string/tile_fast_charge"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

@@ -20,9 +20,12 @@ import com.pox.kernelmanager.data.model.HardwareStats
 @Composable
 fun ChargingDetailCard(
     stats: HardwareStats,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
     Card(
+        onClick = onClick ?: {},
+        enabled = onClick != null,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
