@@ -664,10 +664,10 @@ fun FeaturesScreen(
             FeatureSliderCard(
                 title = "BORE Burst Penalty Offset",
                 valueLabel = "${uiState.features.schedBurstPenaltyOffset}",
-                description = "Baseline burst duration offset before penalty scaling engages (0-64, default 24)",
+                description = "Baseline burst duration offset before penalty scaling engages (0-63, default 24)",
                 value = uiState.features.schedBurstPenaltyOffset.toFloat(),
-                valueRange = 0f..64f,
-                steps = 15,
+                valueRange = 0f..63f,
+                steps = 14,
                 onValueChange = { viewModel.setSchedBurstPenaltyOffset(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.BORE_SCHEDULER) || uiState.features.rootGranted
             )
@@ -1270,6 +1270,16 @@ private fun CreateKprofileDialog(
     var schedBore by remember { mutableStateOf(true) }
     var schedBurstScale by remember { mutableIntStateOf(1536) }
     var schedBurstOffset by remember { mutableIntStateOf(24) }
+    /* Kernel custom_params tunables (gaming_mode.h tunables order). */
+    var kpUpLittleUs by remember { mutableIntStateOf(500) }
+    var kpDownLittleUs by remember { mutableIntStateOf(20000) }
+    var kpUpBigUs by remember { mutableIntStateOf(200) }
+    var kpDownBigUs by remember { mutableIntStateOf(20000) }
+    var kpTopAppBoost by remember { mutableIntStateOf(20) }
+    var kpFgBoost by remember { mutableIntStateOf(5) }
+    var kpGpuBoost by remember { mutableStateOf(true) }
+    var kpDramBoost by remember { mutableStateOf(false) }
+    var kpRescueOpp by remember { mutableIntStateOf(0) }
     var dynamicFsync by remember { mutableStateOf(true) }
     var fastCharge by remember { mutableStateOf(true) }
     var healthCalibration by remember { mutableStateOf(HealthCalibrationMode.AUTO_ADAPTIVE) }
@@ -1352,6 +1362,74 @@ private fun CreateKprofileDialog(
                     onValueChange = { schedBurstScale = it.toInt() },
                     valueRange = 0f..4095f
                 )
+                Text("Burst Penalty Offset: $schedBurstOffset", style = MaterialTheme.typography.bodySmall)
+                Slider(
+                    value = schedBurstOffset.toFloat(),
+                    onValueChange = { schedBurstOffset = it.toInt() },
+                    valueRange = 0f..63f,
+                    steps = 14
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text("Custom Kprofile Tunables (kp_mode 4)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Text("A55 ramp-up: ${kpUpLittleUs}us", style = MaterialTheme.typography.bodySmall)
+                Slider(
+                    value = kpUpLittleUs.toFloat(),
+                    onValueChange = { kpUpLittleUs = it.toInt() },
+                    valueRange = 50f..5000f
+                )
+                Text("A55 ramp-down: ${kpDownLittleUs}us", style = MaterialTheme.typography.bodySmall)
+                Slider(
+                    value = kpDownLittleUs.toFloat(),
+                    onValueChange = { kpDownLittleUs = it.toInt() },
+                    valueRange = 500f..100000f
+                )
+                Text("A76 ramp-up: ${kpUpBigUs}us", style = MaterialTheme.typography.bodySmall)
+                Slider(
+                    value = kpUpBigUs.toFloat(),
+                    onValueChange = { kpUpBigUs = it.toInt() },
+                    valueRange = 50f..5000f
+                )
+                Text("A76 ramp-down: ${kpDownBigUs}us", style = MaterialTheme.typography.bodySmall)
+                Slider(
+                    value = kpDownBigUs.toFloat(),
+                    onValueChange = { kpDownBigUs = it.toInt() },
+                    valueRange = 500f..100000f
+                )
+                Text("Top-App Boost: $kpTopAppBoost%", style = MaterialTheme.typography.bodySmall)
+                Slider(
+                    value = kpTopAppBoost.toFloat(),
+                    onValueChange = { kpTopAppBoost = it.toInt() },
+                    valueRange = 0f..100f
+                )
+                Text("Foreground Boost: $kpFgBoost%", style = MaterialTheme.typography.bodySmall)
+                Slider(
+                    value = kpFgBoost.toFloat(),
+                    onValueChange = { kpFgBoost = it.toInt() },
+                    valueRange = 0f..100f
+                )
+                Text("Peak Rescue OPP Ceiling: $kpRescueOpp (0=peak)", style = MaterialTheme.typography.bodySmall)
+                Slider(
+                    value = kpRescueOpp.toFloat(),
+                    onValueChange = { kpRescueOpp = it.toInt() },
+                    valueRange = 0f..4f,
+                    steps = 3
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("GPU Gaming Boost", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = kpGpuBoost, onCheckedChange = { kpGpuBoost = it })
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Lock Max DRAM OPP", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = kpDramBoost, onCheckedChange = { kpDramBoost = it })
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1386,6 +1464,15 @@ private fun CreateKprofileDialog(
                                 schedBore = schedBore,
                                 schedBurstPenaltyScale = schedBurstScale,
                                 schedBurstPenaltyOffset = schedBurstOffset,
+                                schedutilUpLittleUs = kpUpLittleUs,
+                                schedutilDownLittleUs = kpDownLittleUs,
+                                schedutilUpBigUs = kpUpBigUs,
+                                schedutilDownBigUs = kpDownBigUs,
+                                topAppBoost = kpTopAppBoost,
+                                fgBoost = kpFgBoost,
+                                gpuBoost = kpGpuBoost,
+                                dramBoost = kpDramBoost,
+                                rescueOpp = kpRescueOpp,
                                 dynamicFsync = dynamicFsync,
                                 fastCharge = fastCharge,
                                 healthCalibration = healthCalibration
@@ -1442,36 +1529,36 @@ private fun CreateColorProfileDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(14.dp))
-                Text("Saturation: $sat", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text("Saturation: $sat (LUT step 0-9)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Slider(
                     value = sat.toFloat(),
                     onValueChange = { sat = it.toInt() },
-                    valueRange = 0f..15f,
-                    steps = 14
+                    valueRange = 0f..9f,
+                    steps = 8
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Contrast: $contrast", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text("Contrast: $contrast (LUT step 0-9)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Slider(
                     value = contrast.toFloat(),
                     onValueChange = { contrast = it.toInt() },
-                    valueRange = 0f..15f,
-                    steps = 14
+                    valueRange = 0f..9f,
+                    steps = 8
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Brightness: $brightness", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text("Brightness: $brightness (LUT step 0-9)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Slider(
                     value = brightness.toFloat(),
                     onValueChange = { brightness = it.toInt() },
-                    valueRange = 0f..15f,
-                    steps = 14
+                    valueRange = 0f..9f,
+                    steps = 8
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Saturation Adjustment (Tone Curve): $satAdj", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text("Saturation Adjustment (Tone Curve): $satAdj (0-9)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Slider(
                     value = satAdj.toFloat(),
                     onValueChange = { satAdj = it.toInt() },
-                    valueRange = 0f..15f,
-                    steps = 14
+                    valueRange = 0f..9f,
+                    steps = 8
                 )
             }
         },
