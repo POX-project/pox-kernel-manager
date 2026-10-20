@@ -78,17 +78,17 @@ object TuningRepository {
 
         val savedGaming = prefs.getInt("gaming_mode", 0)
         val gamingRaw = if (isRoot) {
-            val procMode = ShellUtils.fastRead(KernelNodes.GAMING_MODE_PROC)?.trim()?.toIntOrNull()
-            if (procMode != null) procMode else {
-                val mode = ShellUtils.fastRead(KernelNodes.GAMING_MODE_SYS)?.trim()?.toIntOrNull()
-                if (mode != null) mode else {
+            /* /proc/perfmgr/gaming_mode prints "gaming_mode: N" plus status
+             * lines; /sys/kernel/gaming_mode is a plain int. */
+            KernelNodes.parseKeyedInt(ShellUtils.readNode(KernelNodes.GAMING_MODE_PROC).orEmpty(), "gaming_mode")
+                ?: ShellUtils.fastRead(KernelNodes.GAMING_MODE_SYS)?.trim()?.toIntOrNull()
+                ?: run {
                     val boost = ShellUtils.readNode(KernelNodes.BOOST_FG)?.trim()?.toIntOrNull()
                     if (boost != null) {
                         boostForMode.entries.minByOrNull { kotlin.math.abs(it.value - boost) }?.key?.value
                             ?: savedGaming
                     } else savedGaming
                 }
-            }
         } else savedGaming
 
         val gamingLevel = when (gamingRaw) {
@@ -147,8 +147,7 @@ object TuningRepository {
 
         val schedBore = if (isRoot) {
             ShellUtils.fastRead(KernelNodes.SCHED_BORE_SYS)?.trim() == "1" ||
-            ShellUtils.fastRead(KernelNodes.SCHED_BORE_SYSCTL)?.trim() == "1" ||
-            ShellUtils.fastRead(KernelNodes.SCHED_BORE_PROC)?.contains("sched_bore=1") == true
+            KernelNodes.parseKeyedInt(ShellUtils.readNode(KernelNodes.SCHED_BORE_PROC).orEmpty(), "sched_bore") == 1
         } else prefs.getBoolean("sched_bore", true)
 
         val burstPenalty = if (isRoot) {
@@ -183,14 +182,12 @@ object TuningRepository {
 
         val bypass = if (isRoot && isSupported(TuningFeature.BYPASS_CHARGING)) {
             ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_PROC) == "1" ||
-            ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_SYS) == "1" ||
-            ShellUtils.fastRead(KernelNodes.BATTERY_CHARGING_ENABLED) == "0"
+            ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_SYS) == "1"
         } else prefs.getBoolean("bypass_charging", false)
 
         val chargeLimit = if (isRoot && isSupported(TuningFeature.CHARGE_LIMIT)) {
             ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_PROC)?.toIntOrNull()
                 ?: ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_SYS)?.toIntOrNull()
-                ?: ShellUtils.fastRead(KernelNodes.BATTERY_CHARGE_CONTROL_LIMIT)?.toIntOrNull()
                 ?: prefs.getInt("charge_limit", 100)
         } else prefs.getInt("charge_limit", 100)
 
@@ -221,17 +218,17 @@ object TuningRepository {
 
         val trueTone = if (isRoot && isSupported(TuningFeature.TRUE_TONE)) {
             ShellUtils.fastRead(KernelNodes.TRUE_TONE_SYS) == "1" ||
-            ShellUtils.readNode(KernelNodes.TRUE_TONE_PROC)?.contains("enabled") == true ||
-            ShellUtils.fastRead(KernelNodes.TRUE_TONE_PROC) == "1"
+            KernelNodes.parseKeyedInt(ShellUtils.readNode(KernelNodes.TRUE_TONE_PROC).orEmpty(), "true_tone") == 1
         } else prefs.getBoolean("true_tone", false)
 
         val colorMode = if (isRoot && isSupported(TuningFeature.COLOR_MODE)) {
-            ShellUtils.fastRead(KernelNodes.COLOR_MODE_PROC)?.toIntOrNull()
+            KernelNodes.parseKeyedInt(ShellUtils.readNode(KernelNodes.COLOR_MODE_PROC).orEmpty(), "color_mode")
+                ?: ShellUtils.fastRead(KernelNodes.COLOR_MODE_SYS)?.trim()?.toIntOrNull()
                 ?: prefs.getInt("color_mode", 0)
         } else prefs.getInt("color_mode", 0)
 
         val hbmMode = if (isRoot && isSupported(TuningFeature.HBM_MODE)) {
-            ShellUtils.fastRead(KernelNodes.HBM_MODE_PROC)?.toIntOrNull()
+            KernelNodes.parseKeyedInt(ShellUtils.readNode(KernelNodes.HBM_MODE_PROC).orEmpty(), "hbm_mode")
                 ?: prefs.getInt("hbm_mode", 0)
         } else prefs.getInt("hbm_mode", 0)
 
@@ -262,8 +259,7 @@ object TuningRepository {
         } else prefs.getBoolean("wakelock_blocker", false)
 
         val fsync = if (isRoot && isSupported(TuningFeature.DYNAMIC_FSYNC)) {
-            ShellUtils.fastRead(KernelNodes.DYNAMIC_FSYNC_PROC) == "1" ||
-            ShellUtils.fastRead(KernelNodes.DYNAMIC_FSYNC_SYS) == "1"
+            ShellUtils.fastRead(KernelNodes.DYNAMIC_FSYNC_PROC) == "1"
         } else prefs.getBoolean("dynamic_fsync", false)
 
         val driveDroid = if (isRoot && isSupported(TuningFeature.DRIVEDROID)) {
@@ -415,15 +411,23 @@ object TuningRepository {
         val kpVal = when (level) {
             GamingModeLevel.POWERSAVE -> "1"
             GamingModeLevel.BALANCED -> "2"
-            GamingModeLevel.GAMING, GamingModeLevel.EXTREME -> "3"
+            GamingModeLevel.GAMING -> "3"
+            // EXTREME is a gaming_mode-only level: the kernel maps kp_mode 3 to
+            // plain GAMING, so writing kp_mode here would immediately downgrade
+            // the just-applied EXTREME hint. Write nothing for EXTREME.
+            GamingModeLevel.EXTREME -> null
+        }
+
+        val writes = buildList {
+            add(KernelNodes.GAMING_MODE_PROC to level.value.toString())
+            add(KernelNodes.GAMING_MODE_SYS to level.value.toString())
+            kpVal?.let { add(KernelNodes.KPROFILES_MODE to it) }
+            add(KernelNodes.BOOST_FG to boost.toString())
         }
 
         val boosted = applyKernelWrites(
             successLabel = "${level.title} - EAS boost $boost",
-            KernelNodes.GAMING_MODE_PROC to level.value.toString(),
-            KernelNodes.GAMING_MODE_SYS to level.value.toString(),
-            KernelNodes.KPROFILES_MODE to kpVal,
-            KernelNodes.BOOST_FG to boost.toString()
+            *writes.toTypedArray()
         )
 
         if (boost > 0) {
@@ -445,14 +449,22 @@ object TuningRepository {
             KprofilesLevel.BALANCED -> "0"
             KprofilesLevel.PERFORMANCE -> "1"
             KprofilesLevel.DISABLED -> "0"
-            KprofilesLevel.CUSTOM -> "0"
+            // kp_mode 4 is an orthogonal custom-profile activation; it must
+            // not clobber the gaming_mode level a profile applied just before.
+            KprofilesLevel.CUSTOM -> null
+        }
+
+        val writes = buildList {
+            add(KernelNodes.KPROFILES_MODE to level.value.toString())
+            gamingVal?.let {
+                add(KernelNodes.GAMING_MODE_PROC to it)
+                add(KernelNodes.GAMING_MODE_SYS to it)
+            }
         }
 
         applyKernelWrites(
             successLabel = "Kprofiles mode set to ${level.title}",
-            KernelNodes.KPROFILES_MODE to level.value.toString(),
-            KernelNodes.GAMING_MODE_PROC to gamingVal,
-            KernelNodes.GAMING_MODE_SYS to gamingVal
+            *writes.toTypedArray()
         )
     }
 
@@ -461,8 +473,27 @@ object TuningRepository {
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Auto-KP")
         val v = if (enable) "1" else "0"
         applyKernelWrites(
-            successLabel = if (enable) "Auto-KP display blanking active" else "Auto-KP disabled",
+            successLabel = if (enable) "Auto-KP adaptive engine active" else "Auto-KP engine stopped (manual hints only)",
             KernelNodes.KPROFILES_AUTO to v
+        )
+    }
+
+    /**
+     * Push the 10 kernel custom kprofile tunables.
+     *
+     * The kernel stores them immediately and latches them onto hardware when
+     * kp_mode 4 (CUSTOM) activates, so this write must happen before the mode
+     * switch. Order is gaming_mode.h's pox_kprofile_custom_tunables layout.
+     */
+    suspend fun setKprofilesCustomParams(params: String): TuningApplyResult = withContext(Dispatchers.IO) {
+        if (params.count { it == ' ' } != 9) {
+            return@withContext TuningApplyResult(false, "custom_params must carry 10 space-separated tunables")
+        }
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Custom Kprofile tunables")
+        applyKernelWrites(
+            successLabel = "Custom Kprofile tunables stored ($params)",
+            KernelNodes.KPROFILES_CUSTOM_SYS to params,
+            KernelNodes.KPROFILES_CUSTOM_PROC to params
         )
     }
 
@@ -480,9 +511,12 @@ object TuningRepository {
         prefs.edit().putBoolean("opp_voltage_guard", enable).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("OPP Voltage Guard")
         val v = if (enable) "1" else "0"
+        // The guard has its own kernel nodes; writing health_calibration here
+        // would silently overwrite the calibration mode instead.
         applyKernelWrites(
             successLabel = if (enable) "OPP Voltage Brownout Guard armed (anti-freeze active)" else "OPP Voltage Guard disabled",
-            KernelNodes.HEALTH_CALIBRATION_PROC to (if (enable) "1" else "0")
+            KernelNodes.OPP_VOLTAGE_GUARD_PROC to v,
+            KernelNodes.OPP_VOLTAGE_GUARD_SYS to v
         )
     }
 
@@ -493,7 +527,6 @@ object TuningRepository {
         applyKernelWrites(
             successLabel = if (enable) "BORE burst response enhancer enabled" else "BORE scheduler disabled",
             KernelNodes.SCHED_BORE_SYS to v,
-            KernelNodes.SCHED_BORE_SYSCTL to v,
             KernelNodes.SCHED_BORE_PROC to v
         )
     }
@@ -509,7 +542,8 @@ object TuningRepository {
     }
 
     suspend fun setSchedBurstPenaltyOffset(offset: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        val clamped = offset.coerceIn(0, 64)
+        // Kernel clamps to 63 (fair.c upper bound for the offset floor).
+        val clamped = offset.coerceIn(0, 63)
         prefs.edit().putInt("sched_burst_penalty_offset", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("BORE penalty offset")
         applyKernelWrites(
@@ -610,8 +644,7 @@ object TuningRepository {
         applyKernelWrites(
             successLabel = if (enable) "Direct-Power bypass mode active (charging disabled)" else "Normal charging enabled",
             KernelNodes.BATTERY_BYPASS_PROC to if (enable) "1" else "0",
-            KernelNodes.BATTERY_BYPASS_SYS to if (enable) "1" else "0",
-            KernelNodes.BATTERY_CHARGING_ENABLED to if (enable) "0" else "1"
+            KernelNodes.BATTERY_BYPASS_SYS to if (enable) "1" else "0"
         )
     }
 
@@ -623,8 +656,7 @@ object TuningRepository {
         applyKernelWrites(
             successLabel = "Charging stop limit set to $clamped%",
             KernelNodes.BATTERY_LIMIT_PROC to clamped.toString(),
-            KernelNodes.BATTERY_LIMIT_SYS to clamped.toString(),
-            KernelNodes.BATTERY_CHARGE_CONTROL_LIMIT to clamped.toString()
+            KernelNodes.BATTERY_LIMIT_SYS to clamped.toString()
         )
     }
 
@@ -707,10 +739,15 @@ object TuningRepository {
     }
 
     suspend fun setColorCustom(sat: Int, contrast: Int, brightness: Int, satAdj: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        val s = sat.coerceIn(0, 15)
-        val c = contrast.coerceIn(0, 15)
-        val b = brightness.coerceIn(0, 15)
-        val a = satAdj.coerceIn(0, 15)
+        // The DISP COLOR hardware LUTs carry 10 tuning steps each
+        // (GLOBAL_SAT_SIZE / CONTRAST_SIZE / BRIGHTNESS_SIZE in ddp_pq.h),
+        // and sat_adj accepts 0..18 (COLOR_TUNING_INDEX - 1). Anything the
+        // kernel clamps just becomes a different value than the slider showed,
+        // so bound the UI to the real hardware range instead.
+        val s = sat.coerceIn(0, 9)
+        val c = contrast.coerceIn(0, 9)
+        val b = brightness.coerceIn(0, 9)
+        val a = satAdj.coerceIn(0, 18)
         prefs.edit()
             .putInt("color_custom_sat", s)
             .putInt("color_custom_con", c)
@@ -955,8 +992,7 @@ object TuningRepository {
         if (!isSupported(TuningFeature.DYNAMIC_FSYNC)) return@withContext unsupported(TuningFeature.DYNAMIC_FSYNC)
         applyKernelWrites(
             successLabel = if (enable) "Dynamic Fsync active" else "Dynamic Fsync disabled",
-            KernelNodes.DYNAMIC_FSYNC_PROC to if (enable) "1" else "0",
-            KernelNodes.DYNAMIC_FSYNC_SYS to if (enable) "1" else "0"
+            KernelNodes.DYNAMIC_FSYNC_PROC to if (enable) "1" else "0"
         )
     }
 

@@ -227,8 +227,7 @@ object HardwareRepository {
 
         val wattage = (batVoltageMv * abs(batCurrentMa)) / 1000000f
         val bypassMode = ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_PROC) == "1" ||
-            ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_SYS) == "1" ||
-            ShellUtils.fastRead(KernelNodes.BATTERY_CHARGING_ENABLED) == "0"
+            ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_SYS) == "1"
 
         val kernelBatStatus = ShellUtils.fastRead(KernelNodes.BATTERY_STATUS_PROC)
             ?: ShellUtils.fastRead(KernelNodes.BATTERY_STATUS_SYS)
@@ -243,7 +242,6 @@ object HardwareRepository {
 
         val chargeLimitCap = ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_PROC)?.toIntOrNull()
             ?: ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_SYS)?.toIntOrNull()
-            ?: ShellUtils.fastRead(KernelNodes.BATTERY_CHARGE_CONTROL_LIMIT)?.toIntOrNull()
             ?: 100
 
         val designCapacity = (ShellUtils.fastRead("/sys/class/power_supply/battery/charge_full_design")?.toIntOrNull() ?: 4500000) / 1000

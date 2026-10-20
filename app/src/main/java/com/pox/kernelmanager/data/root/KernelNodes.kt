@@ -94,24 +94,23 @@ object KernelNodes {
 
     const val HEALTH_CALIBRATION_PROC = "/proc/perfmgr/health_calibration"
     const val HEALTH_CALIBRATION_SYS = "/sys/kernel/health_calibration"
+    const val OPP_VOLTAGE_GUARD_PROC = "/proc/perfmgr/opp_voltage_guard"
+    const val OPP_VOLTAGE_GUARD_SYS = "/sys/kernel/opp_voltage_guard"
     const val HEALTH_STATUS_PROC = "/proc/perfmgr/health_status"
 
     const val SCHED_BORE_PROC = "/proc/perfmgr/sched_bore"
     const val SCHED_BORE_SYS = "/sys/kernel/sched_bore"
-    const val SCHED_BORE_SYSCTL = "/proc/sys/kernel/sched_bore"
-    const val SCHED_BURST_PENALTY_SCALE = "/proc/sys/kernel/sched_burst_penalty_scale"
+    const val SCHED_BURST_PENALTY_SCALE = "/sys/kernel/sched_burst_penalty_scale"
     const val SCHED_BURST_PENALTY_OFFSET = "/sys/kernel/sched_burst_penalty_offset"
     const val SCHED_BURST_INHERIT_TYPE = "/sys/kernel/sched_burst_inherit_type"
-    const val SCHED_BURST_CACHE_LIFETIME = "/proc/sys/kernel/sched_burst_cache_lifetime"
+    const val SCHED_BURST_CACHE_LIFETIME = "/sys/kernel/sched_burst_cache_lifetime"
 
     const val FAST_CHARGE_PROC = "/proc/perfmgr/fast_charge"
     const val BATTERY_BYPASS_PROC = "/proc/perfmgr/battery_bypass"
     const val BATTERY_BYPASS_SYS = "/sys/kernel/battery_protection/bypass_mode"
-    const val BATTERY_CHARGING_ENABLED = "/sys/class/power_supply/battery/charging_enabled"
 
     const val BATTERY_LIMIT_PROC = "/proc/perfmgr/battery_limit"
     const val BATTERY_LIMIT_SYS = "/sys/kernel/battery_protection/charge_limit"
-    const val BATTERY_CHARGE_CONTROL_LIMIT = "/sys/class/power_supply/battery/charge_control_limit"
     const val BATTERY_STATUS_PROC = "/proc/perfmgr/battery_status"
     const val BATTERY_STATUS_SYS = "/sys/kernel/battery_protection/status"
 
@@ -159,7 +158,6 @@ object KernelNodes {
     const val VIBRATOR_VMAX = "/sys/devices/platform/odm/odm:vibrator@0/leds/vibrator/vmax"
 
     const val DYNAMIC_FSYNC_PROC = "/proc/perfmgr/dynamic_fsync"
-    const val DYNAMIC_FSYNC_SYS = "/sys/kernel/dynamic_fsync/dynamic_fsync"
     const val DRIVEDROID_CDROM_PROC = "/proc/perfmgr/usb_cdrom"
     const val DRIVEDROID_CDROM_SYS = "/sys/kernel/usb_cdrom"
     const val DRIVEDROID_LUN0_SYS = "/sys/devices/platform/mt_usb/gadget/lun0/cdrom"
@@ -226,6 +224,19 @@ object KernelNodes {
     }
 
     /**
+     * Extract `key: <int>` from a multi-line proc status dump.
+     *
+     * several perfmgr nodes (gaming_mode, color_mode, hbm_mode) print
+     * `key: value` plus extra status lines, so `trim().toIntOrNull()` on the
+     * whole dump never parses. Match the labelled line instead.
+     */
+    fun parseKeyedInt(raw: String, key: String): Int? {
+        if (raw.isBlank()) return null
+        return Regex("(?m)^\\s*${Regex.escape(key)}:\\s*(-?\\d+)\\s*$")
+            .find(raw)?.groupValues?.get(1)?.toIntOrNull()
+    }
+
+    /**
      * Every node this build probes, in the order it is checked.
      *
      * Surfaced through the diagnostics screen so a device report shows what is
@@ -242,6 +253,8 @@ object KernelNodes {
         BATTERY_STATUS_PROC,
         THERMAL_GUARD_SYS,
         TEMP_LIMIT_SYS,
+        OPP_VOLTAGE_GUARD_PROC,
+        OPP_VOLTAGE_GUARD_SYS,
         TOUCH_GAME_MODE_PROC,
         TOUCH_SENSITIVITY_PROC,
         HEADPHONE_GAIN_PROC,
@@ -268,7 +281,6 @@ object KernelNodes {
         VM_SWAPPINESS,
         VIBRATOR_STRENGTH_PROC,
         DYNAMIC_FSYNC_PROC,
-        DYNAMIC_FSYNC_SYS,
         DRIVEDROID_CDROM_PROC,
         DRIVEDROID_CDROM_SYS,
         DRIVEDROID_LUN0_SYS,
@@ -330,20 +342,44 @@ object KernelNodes {
             return TuningFeature.entries.associateWith { false }
         }
 
-        val writable: suspend (String) -> Boolean = { ShellUtils.nodeExists(it) }
+        val allCandidates = mutableListOf(
+            TOUCH_GAME_MODE_PROC, USRTCH, "/proc/perfmgr/tchbst/kernel/tb_enable",
+            TOUCH_SENSITIVITY_PROC, GAMING_MODE_PROC, GAMING_MODE_SYS, BOOST_FG,
+            FPS_144, DYNAMIC_FSYNC_PROC,
+            DRIVEDROID_CDROM_PROC, DRIVEDROID_CDROM_SYS, DRIVEDROID_LUN0_SYS,
+            "/dev/memcg/memory.xswapd.enable", FAST_CHARGE_PROC,
+            BATTERY_BYPASS_PROC, BATTERY_BYPASS_SYS,
+            BATTERY_LIMIT_PROC, BATTERY_LIMIT_SYS,
+            THERMAL_GUARD_SYS, DT2W_PROC, TRUE_TONE_PROC, TRUE_TONE_SYS,
+            COLOR_MODE_PROC, COLOR_CUSTOM_PROC, COLOR_CUSTOM_SYS, HBM_MODE_PROC,
+            HEADPHONE_GAIN_PROC, MIC_GAIN_PROC, ACTIVE_MIC_PROC, ACTIVE_MIC_SYS,
+            VIBRATOR_STRENGTH_PROC, VIBRATOR_VMAX, WAKELOCK_BLOCKER_PROC,
+            CAMERA_4K60_PROC, CAMERA_4K60_SYS, CAMERA_SLOG3_PROC, CAMERA_SLOG3_SYS,
+            TORCH_BRIGHTNESS_PROC, TORCH_BRIGHTNESS_SYS, WQ_POWER_EFFICIENT,
+            TCP_CONGESTION_CONTROL, SCHED_WALT_CPU_UTIL, SCHED_WALT_TASK_UTIL,
+            SCHED_CSTATE_AWARE, VM_SWAPPINESS, KPROFILES_MODE,
+            HEALTH_CALIBRATION_PROC, HEALTH_CALIBRATION_SYS, HEALTH_STATUS_PROC,
+            OPP_VOLTAGE_GUARD_PROC, OPP_VOLTAGE_GUARD_SYS,
+            SCHED_BORE_PROC, SCHED_BORE_SYS, "/sys/block/zram0/disksize"
+        )
+        blockDevices().forEach { allCandidates.add("$it/queue/read_ahead_kb") }
+        cpufreqPolicies().forEach { allCandidates.add("$it/cpufreq/scaling_governor") }
+
+        val writableSet = ShellUtils.batchCheckWritable(allCandidates)
+        val writable: (String) -> Boolean = { it in writableSet }
 
         val touchBoost = writable(TOUCH_GAME_MODE_PROC) || writable(USRTCH) || writable("/proc/perfmgr/tchbst/kernel/tb_enable")
         val touchSensitivity = writable(TOUCH_SENSITIVITY_PROC)
         val perfBoost = writable(GAMING_MODE_PROC) || writable(GAMING_MODE_SYS) || writable(BOOST_FG)
         val fpsCap = writable(FPS_144)
 
-        val dynFsync = writable(DYNAMIC_FSYNC_PROC) || writable(DYNAMIC_FSYNC_SYS)
+        val dynFsync = writable(DYNAMIC_FSYNC_PROC)
         val driveDroid = writable(DRIVEDROID_CDROM_PROC) || writable(DRIVEDROID_CDROM_SYS) || writable(DRIVEDROID_LUN0_SYS)
         val xswapd = writable("/dev/memcg/memory.xswapd.enable")
 
         val fastCharge = writable(FAST_CHARGE_PROC)
-        val bypassCharging = writable(BATTERY_BYPASS_PROC) || writable(BATTERY_BYPASS_SYS) || writable(BATTERY_CHARGING_ENABLED)
-        val chargeLimit = writable(BATTERY_LIMIT_PROC) || writable(BATTERY_LIMIT_SYS) || writable(BATTERY_CHARGE_CONTROL_LIMIT)
+        val bypassCharging = writable(BATTERY_BYPASS_PROC) || writable(BATTERY_BYPASS_SYS)
+        val chargeLimit = writable(BATTERY_LIMIT_PROC) || writable(BATTERY_LIMIT_SYS)
         val thermalGuard = writable(THERMAL_GUARD_SYS)
         val dt2w = writable(DT2W_PROC)
         val trueTone = writable(TRUE_TONE_PROC) || writable(TRUE_TONE_SYS)
@@ -368,7 +404,8 @@ object KernelNodes {
 
         val kprofiles = writable(KPROFILES_MODE) || writable(GAMING_MODE_PROC) || writable(GAMING_MODE_SYS)
         val healthCalibration = writable(HEALTH_CALIBRATION_PROC) || writable(HEALTH_CALIBRATION_SYS) || writable(HEALTH_STATUS_PROC)
-        val schedBore = writable(SCHED_BORE_PROC) || writable(SCHED_BORE_SYS) || writable(SCHED_BORE_SYSCTL)
+        val oppGuard = writable(OPP_VOLTAGE_GUARD_PROC) || writable(OPP_VOLTAGE_GUARD_SYS)
+        val schedBore = writable(SCHED_BORE_PROC) || writable(SCHED_BORE_SYS)
 
         var blockQueue: String? = null
         for (queue in blockDevices()) {
@@ -389,7 +426,7 @@ object KernelNodes {
         return mapOf(
             TuningFeature.GAMING_MODE to (perfBoost || touchBoost),
             TuningFeature.KPROFILES to kprofiles,
-            TuningFeature.PHONE_HEALTH_CALIBRATION to healthCalibration,
+            TuningFeature.PHONE_HEALTH_CALIBRATION to (healthCalibration || oppGuard),
             TuningFeature.BORE_SCHEDULER to schedBore,
             TuningFeature.TOUCH_BOOST to touchBoost,
             TuningFeature.TOUCH_SENSITIVITY to touchSensitivity,
