@@ -382,13 +382,14 @@ suspend fun fastWrite(
     verify: ((String) -> Boolean)? = null
 ): Boolean = withContext(Dispatchers.IO) {
     val quotedPath = shellQuote(path)
-    val expected = value.trim()
 
     try {
         val file = File(path)
         if (file.exists() && file.canWrite()) {
             file.writeText(value)
-            if (verify == null && file.readText().trim() == expected) return@withContext true
+            if (verify == null) return@withContext true
+            val content = file.readText().trim()
+            return@withContext verify(content)
         }
     } catch (_: Exception) { }
 
@@ -398,13 +399,63 @@ suspend fun fastWrite(
         val written = Shell.cmd("printf '%s\\n' ${shellQuote(value)} > $quotedPath").exec()
         if (!written.isSuccess) return@withContext false
 
-        val readBack = Shell.cmd("cat $quotedPath 2>/dev/null").exec()
-        val content = readBack.out.joinToString("\n")
-        if (verify != null) return@withContext verify(content)
-        readBack.out.firstOrNull()?.trim() == expected
+        if (verify != null) {
+            val readBack = Shell.cmd("cat $quotedPath 2>/dev/null").exec()
+            val content = readBack.out.joinToString("\n")
+            return@withContext verify(content)
+        }
+        true
     } catch (_: Exception) {
         false
     }
+}
+
+/**
+ * Batch-test write access for a collection of node paths in a single shell execution.
+ * Eliminates running dozens of separate subshells during hardware probing.
+ */
+suspend fun batchCheckWritable(paths: List<String>): Set<String> = withContext(Dispatchers.IO) {
+    if (paths.isEmpty() || !isRootAvailable()) return@withContext emptySet()
+    val script = buildString {
+        for (p in paths) {
+            append("[ -w ").append(shellQuote(p)).append(" ] && echo ").append(shellQuote(p)).append("\n")
+        }
+    }
+    val res = runCatching { Shell.cmd(script).exec() }.getOrNull()
+    res?.out?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet().orEmpty()
+}
+
+/**
+ * Batch-read multiple node paths in a single shell execution to minimize IPC latency.
+ */
+suspend fun batchRead(paths: List<String>): Map<String, String> = withContext(Dispatchers.IO) {
+    if (paths.isEmpty() || !isRootAvailable()) return@withContext emptyMap()
+    val script = buildString {
+        for (p in paths) {
+            append("echo \"__POX_NODE__:$p\"\n")
+            append("cat ${shellQuote(p)} 2>/dev/null\n")
+        }
+    }
+    val res = runCatching { Shell.cmd(script).exec() }.getOrNull() ?: return@withContext emptyMap()
+    val map = HashMap<String, String>()
+    var curPath: String? = null
+    val curLines = mutableListOf<String>()
+
+    for (line in res.out) {
+        if (line.startsWith("__POX_NODE__:")) {
+            if (curPath != null) {
+                map[curPath] = curLines.joinToString("\n").trim()
+                curLines.clear()
+            }
+            curPath = line.substring("__POX_NODE__:".length)
+        } else {
+            curLines.add(line)
+        }
+    }
+    if (curPath != null) {
+        map[curPath] = curLines.joinToString("\n").trim()
+    }
+    map
 }
 
 /**
@@ -415,7 +466,7 @@ suspend fun fastWrite(
  * tuning nodes must always be read through the shell.
  */
 suspend fun readNode(path: String): String? = withContext(Dispatchers.IO) {
-    if (!rootKnownGranted()) return@withContext null
+    if (!isRootAvailable()) return@withContext null
     try {
         val res = Shell.cmd("cat ${shellQuote(path)} 2>/dev/null").exec()
         val text = res.out.joinToString("\n").trim()
@@ -442,7 +493,7 @@ data class NodeStatus(
  */
 suspend fun nodeReport(paths: List<String>): List<NodeStatus> =
     withContext(Dispatchers.IO) {
-        val granted = rootKnownGranted()
+        val granted = isRootAvailable()
         paths.map { path ->
             if (!granted) {
                 NodeStatus(path, exists = false, writable = false, sample = null)
@@ -462,18 +513,10 @@ suspend fun nodeReport(paths: List<String>): List<NodeStatus> =
         }
     }
 
-/**
- * Whether the last probe found a root shell, without forcing a re-probe.
- *
- * Every caller of `nodeExists`/`readNode` already establishes the environment
- * once, so re-entering `environment()` on each of ~12 probes re-ran the whole
- * batched script — including `pm list packages` — every couple of seconds while
- * the tuning screen sat there loading.
- */
 fun rootKnownGranted(): Boolean = cached?.environment?.granted == true
 
 suspend fun nodeExists(path: String): Boolean = withContext(Dispatchers.IO) {
-    if (!rootKnownGranted()) return@withContext false
+    if (!isRootAvailable()) return@withContext false
     try {
         Shell.cmd("test -w ${shellQuote(path)}").exec().isSuccess
     } catch (_: Exception) {
