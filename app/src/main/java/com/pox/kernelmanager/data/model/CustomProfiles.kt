@@ -29,10 +29,10 @@ data class CustomColorProfile(
             id = json.optString("id", UUID.randomUUID().toString()),
             name = json.optString("name", "Custom Profile"),
             description = json.optString("description", ""),
-            saturation = json.optInt("saturation", 4),
-            contrast = json.optInt("contrast", 4),
-            brightness = json.optInt("brightness", 4),
-            saturationAdjustment = json.optInt("saturationAdjustment", 0),
+            saturation = json.optInt("saturation", 4).coerceIn(0, 9),
+            contrast = json.optInt("contrast", 4).coerceIn(0, 9),
+            brightness = json.optInt("brightness", 4).coerceIn(0, 9),
+            saturationAdjustment = json.optInt("saturationAdjustment", 0).coerceIn(0, 9),
             isPreset = json.optBoolean("isPreset", false)
         )
 
@@ -61,7 +61,7 @@ data class CustomColorProfile(
                 id = "preset_cyberpunk",
                 name = "Cyberpunk Vibrant Neon",
                 description = "Maximum saturation pop for gaming and vivid anime media",
-                saturation = 11,
+                saturation = 9,
                 contrast = 8,
                 brightness = 5,
                 saturationAdjustment = 3,
@@ -92,6 +92,18 @@ data class CustomKprofile(
     val schedBurstPenaltyScale: Int = 1536,
     val schedBurstPenaltyOffset: Int = 24,
     val schedBurstInheritType: Int = 2,
+    /* Kernel-side custom_params tunables (gaming_mode.h
+     * pox_kprofile_custom_tunables order) used when the profile selects
+     * Kprofiles level CUSTOM (kp_mode 4). */
+    val schedutilUpLittleUs: Int = 500,
+    val schedutilDownLittleUs: Int = 20000,
+    val schedutilUpBigUs: Int = 200,
+    val schedutilDownBigUs: Int = 20000,
+    val topAppBoost: Int = 20,
+    val fgBoost: Int = 5,
+    val gpuBoost: Boolean = true,
+    val dramBoost: Boolean = false,
+    val rescueOpp: Int = 0,
     val dynamicFsync: Boolean = true,
     val fastCharge: Boolean = true,
     val healthCalibration: HealthCalibrationMode = HealthCalibrationMode.AUTO_ADAPTIVE,
@@ -109,6 +121,15 @@ data class CustomKprofile(
         put("schedBurstPenaltyScale", schedBurstPenaltyScale)
         put("schedBurstPenaltyOffset", schedBurstPenaltyOffset)
         put("schedBurstInheritType", schedBurstInheritType)
+        put("schedutilUpLittleUs", schedutilUpLittleUs)
+        put("schedutilDownLittleUs", schedutilDownLittleUs)
+        put("schedutilUpBigUs", schedutilUpBigUs)
+        put("schedutilDownBigUs", schedutilDownBigUs)
+        put("topAppBoost", topAppBoost)
+        put("fgBoost", fgBoost)
+        put("gpuBoost", gpuBoost)
+        put("dramBoost", dramBoost)
+        put("rescueOpp", rescueOpp)
         put("dynamicFsync", dynamicFsync)
         put("fastCharge", fastCharge)
         put("healthCalibration", healthCalibration.name)
@@ -128,6 +149,15 @@ data class CustomKprofile(
             schedBurstPenaltyScale = json.optInt("schedBurstPenaltyScale", 1536),
             schedBurstPenaltyOffset = json.optInt("schedBurstPenaltyOffset", 24),
             schedBurstInheritType = json.optInt("schedBurstInheritType", 2),
+            schedutilUpLittleUs = json.optInt("schedutilUpLittleUs", 500),
+            schedutilDownLittleUs = json.optInt("schedutilDownLittleUs", 20000),
+            schedutilUpBigUs = json.optInt("schedutilUpBigUs", 200),
+            schedutilDownBigUs = json.optInt("schedutilDownBigUs", 20000),
+            topAppBoost = json.optInt("topAppBoost", 20),
+            fgBoost = json.optInt("fgBoost", 5),
+            gpuBoost = json.optBoolean("gpuBoost", true),
+            dramBoost = json.optBoolean("dramBoost", false),
+            rescueOpp = json.optInt("rescueOpp", 0),
             dynamicFsync = json.optBoolean("dynamicFsync", true),
             fastCharge = json.optBoolean("fastCharge", true),
             healthCalibration = runCatching { HealthCalibrationMode.valueOf(json.optString("healthCalibration", "AUTO_ADAPTIVE")) }.getOrDefault(HealthCalibrationMode.AUTO_ADAPTIVE),
