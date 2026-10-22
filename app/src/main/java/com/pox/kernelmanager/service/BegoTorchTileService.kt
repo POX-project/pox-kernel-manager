@@ -27,10 +27,10 @@ class BegoTorchTileService : TileService() {
         super.onClick()
         serviceScope.launch(Dispatchers.IO) {
             val current = readCurrentLevel()
-            // Cycle: 0 -> 1 -> 2 -> 0
-            val next = when (current) {
-                0 -> 1
-                1 -> 2
+            // Cycle: 0 (Off) -> 4 (Stock 100mA) -> 10 (Max Overdrive 325mA) -> 0 (Off)
+            val next = when {
+                current <= 0 -> 4
+                current in 1..5 -> 10
                 else -> 0
             }
             TuningRepository.setTorchBrightness(next)
@@ -41,6 +41,14 @@ class BegoTorchTileService : TileService() {
     }
 
     private suspend fun readCurrentLevel(): Int {
+        // Fast direct file read without shell fork (mode 0666 in kernel)
+        try {
+            val file = java.io.File(KernelNodes.TORCH_BRIGHTNESS_PROC)
+            if (file.exists() && file.canRead()) {
+                val direct = file.readText().trim().toIntOrNull()
+                if (direct != null) return direct
+            }
+        } catch (_: Exception) { }
         val raw = ShellUtils.fastRead(KernelNodes.TORCH_BRIGHTNESS_PROC)?.trim()
         return raw?.toIntOrNull() ?: 0
     }
@@ -50,10 +58,10 @@ class BegoTorchTileService : TileService() {
             val level = forcedLevel ?: readCurrentLevel()
             val isActive = level > 0
             val label = "BegoTorch"
-            val subLabel = when (level) {
-                1 -> "High Level 1"
-                2 -> "Overdrive Level 2"
-                else -> "Off"
+            val subLabel = when {
+                level <= 0 -> "Off"
+                level in 1..5 -> "Stock (Level $level)"
+                else -> "Overdrive (Level $level)"
             }
 
             launch(Dispatchers.Main) {

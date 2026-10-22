@@ -746,13 +746,29 @@ fun FeaturesScreenContent(
                 enabled = uiState.features.isSupported(TuningFeature.CAMERA_SLOG3)
             )
 
+            val torchLevel = uiState.features.torchBrightness.coerceIn(0, 10)
+            val torchLabel = when (torchLevel) {
+                0 -> "Off"
+                1 -> "Level 1 (25mA • Bedside)"
+                2 -> "Level 2 (50mA)"
+                3 -> "Level 3 (75mA)"
+                4 -> "Level 4 (100mA • Stock)"
+                5 -> "Level 5 (137mA)"
+                6 -> "Level 6 (175mA • High)"
+                7 -> "Level 7 (212mA)"
+                8 -> "Level 8 (250mA • Very High)"
+                9 -> "Level 9 (287mA)"
+                10 -> "Level 10 (325mA • Max Overdrive)"
+                else -> "Level $torchLevel/10"
+            }
+
             FeatureSliderCard(
-                title = "Flashlight Brightness Overdrive",
-                valueLabel = "${uiState.features.torchBrightness}/255",
-                description = "Direct MT6360 PMIC torch overdrive (/proc/perfmgr/torch_brightness clamped at safe 325mA)",
-                value = uiState.features.torchBrightness.toFloat(),
-                valueRange = 0f..255f,
-                steps = 16,
+                title = "BegoTorch Hardware Overdrive",
+                valueLabel = torchLabel,
+                description = "Direct MT6360 PMIC 10-step graded torch current (/proc/perfmgr/torch_brightness clamped at 325mA)",
+                value = torchLevel.toFloat(),
+                valueRange = 0f..10f,
+                steps = 9,
                 onValueChange = { viewModel.setTorchBrightness(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.TORCH_BRIGHTNESS)
             )
