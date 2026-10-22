@@ -67,8 +67,11 @@ fun PoxTopAppBar(
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = com.pox.kernelmanager.ui.theme.LocalThemeTokens.current.topBarBackground,
-            titleContentColor = MaterialTheme.colorScheme.onSurface
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f),
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+            actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         )
     )
 }

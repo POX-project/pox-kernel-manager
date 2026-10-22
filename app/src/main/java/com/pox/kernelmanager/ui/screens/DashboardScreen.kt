@@ -11,9 +11,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -33,7 +35,7 @@ enum class DashboardDetailType {
     GPU_MEMORY_INFO
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel,
@@ -60,8 +62,6 @@ fun DashboardScreen(
         }
     }
 
-    val tokens = com.pox.kernelmanager.ui.theme.LocalThemeTokens.current
-
     Scaffold(
         topBar = {
             PoxTopAppBar(
@@ -85,109 +85,129 @@ fun DashboardScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                shape = tokens.cardShape,
-                border = tokens.cardBorder,
-                colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(tokens.heroGradient)
-                ) {
-                    Column(modifier = Modifier.padding(22.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Pox Kernel",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                                    MaterialTheme.colorScheme.surfaceContainer
+                                )
                             )
+                        )
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Pox Kernel",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = uiState.deviceInfo.kernelEdition.ifEmpty { "Mainline" },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.primary
+                            ) {
+                                Text(
+                                    text = BuildConfig.VERSION_NAME,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = uiState.deviceInfo.kernelRelease.ifEmpty { "4.14.357-Pox-Kernel" },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "${uiState.deviceInfo.deviceModel} (${uiState.deviceInfo.codename}) • ${uiState.deviceInfo.socName}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                        if (uiState.deviceInfo.rootProviderVersion.isNotBlank()) {
                             Text(
-                                text = uiState.deviceInfo.kernelEdition.ifEmpty { "Mainline" },
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                                text = uiState.deviceInfo.rootProviderVersion,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp)
                             )
                         }
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.primary
+
+                        Spacer(modifier = Modifier.height(14.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            StatusBadge(
+                                text = uiState.deviceInfo.rootProvider.displayName,
+                                isActive = uiState.deviceInfo.rootProvider.isRooted &&
+                                        uiState.deviceInfo.rootGranted,
+                                activeColor = MaterialTheme.colorScheme.primary
+                            )
+                            StatusBadge(
+                                text = "SELinux: ${uiState.deviceInfo.selinuxStatus}",
+                                isActive = uiState.deviceInfo.selinuxStatus.equals("Enforcing", true),
+                                activeColor = MaterialTheme.colorScheme.primary
+                            )
+                            StatusBadge(
+                                text = if (uiState.deviceInfo.noMountActive) "NoMount Active" else "NoMount Inactive",
+                                isActive = uiState.deviceInfo.noMountActive,
+                                activeColor = MaterialTheme.colorScheme.tertiary
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.End,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = BuildConfig.VERSION_NAME,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                text = "Tap for Advanced Kernel Specs →",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text(
-                        text = uiState.deviceInfo.kernelRelease.ifEmpty { "4.14.357-Pox-Kernel" },
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        text = "${uiState.deviceInfo.deviceModel} (${uiState.deviceInfo.codename}) • ${uiState.deviceInfo.socName}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                    if (uiState.deviceInfo.rootProviderVersion.isNotBlank()) {
-                        Text(
-                            text = uiState.deviceInfo.rootProviderVersion,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        StatusBadge(
-                            text = uiState.deviceInfo.rootProvider.displayName,
-                            isActive = uiState.deviceInfo.rootProvider.isRooted &&
-                                    uiState.deviceInfo.rootGranted,
-                            activeColor = MaterialTheme.colorScheme.primary
-                        )
-                        StatusBadge(
-                            text = "SELinux: ${uiState.deviceInfo.selinuxStatus}",
-                            isActive = uiState.deviceInfo.selinuxStatus.equals("Enforcing", true),
-                            activeColor = MaterialTheme.colorScheme.primary
-                        )
-                        StatusBadge(
-                            text = if (uiState.deviceInfo.noMountActive) "NoMount Active" else "NoMount Inactive",
-                            isActive = uiState.deviceInfo.noMountActive,
-                            activeColor = MaterialTheme.colorScheme.tertiary
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Tap for Advanced Kernel Specs →",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold
-                        )
                     }
                 }
             }
-        }
 
             // Section: Battery & Charging Telemetry
             SectionHeader(
@@ -199,8 +219,9 @@ fun DashboardScreen(
                 onClick = { activeDetail = DashboardDetailType.BATTERY_INFO }
             )
 
-            Row(
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 6.dp)
@@ -251,7 +272,7 @@ fun DashboardScreen(
                     title = "Cortex-A55 (Little)",
                     value = "${littleCoreFreq} MHz",
                     icon = Icons.Default.Memory,
-                    subtitle = "Core 0..5 • Governor: ${uiState.stats.cpuGovernor}",
+                    subtitle = "Governor: ${uiState.stats.cpuGovernor}",
                     progress = littleCoreFreq / 2000f,
                     onClick = { activeDetail = DashboardDetailType.CPU_INFO },
                     modifier = Modifier.weight(1f)
@@ -293,7 +314,7 @@ fun DashboardScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(28.dp))
         }
 
         // Advanced Modal BottomSheet for Kernel & Hardware Details
@@ -301,21 +322,21 @@ fun DashboardScreen(
             ModalBottomSheet(
                 onDismissRequest = { activeDetail = null },
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                containerColor = tokens.cardBackground,
-                shape = tokens.cardShape
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp, vertical = 16.dp)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     when (detailType) {
                         DashboardDetailType.KERNEL_INFO -> {
                             Text(
                                 text = "Kernel & Hardware Architecture",
-                                style = MaterialTheme.typography.headlineSmall,
+                                style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
                             DetailRow("Release (UTS_RELEASE)", uiState.deviceInfo.kernelRelease)
@@ -333,7 +354,7 @@ fun DashboardScreen(
                         DashboardDetailType.BATTERY_INFO -> {
                             Text(
                                 text = "Battery & Charging Subsystem",
-                                style = MaterialTheme.typography.headlineSmall,
+                                style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
                             DetailRow("Battery Level", "${uiState.stats.batteryLevel}%")
@@ -352,7 +373,7 @@ fun DashboardScreen(
                         DashboardDetailType.CPU_INFO -> {
                             Text(
                                 text = "CPU Complex & Scheduler",
-                                style = MaterialTheme.typography.headlineSmall,
+                                style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
                             DetailRow("Architecture", "Octa-Core Big.LITTLE (2x A76 + 6x A55)")
@@ -369,7 +390,7 @@ fun DashboardScreen(
                         DashboardDetailType.GPU_MEMORY_INFO -> {
                             Text(
                                 text = "GPU & Memory Compression",
-                                style = MaterialTheme.typography.headlineSmall,
+                                style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
                             DetailRow("GPU Model", "ARM Mali-G76 MC4 (Bifrost)")
@@ -410,12 +431,15 @@ private fun DetailRow(label: String, value: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
         )
+        Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1.2f, fill = false)
         )
     }
 }

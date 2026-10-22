@@ -94,4 +94,9 @@ object AdaptiveLearningManager {
 
         getStats()
     }
+
+    fun reset(): LearningStats {
+        prefs.edit().clear().apply()
+        return getStats()
+    }
 }

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -66,7 +67,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainContent() {
     val navItems = listOf(
-        NavItem(title = "Homepage", icon = Icons.Default.Speed),
+        NavItem(title = "Dashboard", icon = Icons.Default.Speed),
         NavItem(title = "Tuning", icon = Icons.Default.Tune),
         NavItem(title = "Settings", icon = Icons.Default.Settings)
     )
@@ -83,15 +84,18 @@ fun MainContent() {
         settingsSubScreen = SettingsSubScreen.MAIN
     }
 
-    val tokens = com.pox.kernelmanager.ui.theme.LocalThemeTokens.current
-
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
         bottomBar = {
+            val isWallpaper = com.pox.kernelmanager.ui.theme.ThemeManager.backgroundModeState != com.pox.kernelmanager.ui.theme.BackgroundMode.PURE_SURFACE
             NavigationBar(
-                containerColor = tokens.navBarBackground,
-                tonalElevation = if (tokens.isGlass) 0.dp else 4.dp
+                containerColor = if (isWallpaper) {
+                    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.92f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainer
+                },
+                tonalElevation = 3.dp
             ) {
                 navItems.forEachIndexed { index, item ->
                     NavigationBarItem(

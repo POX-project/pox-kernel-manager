@@ -1,8 +1,7 @@
 package com.pox.kernelmanager.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -14,8 +13,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pox.kernelmanager.data.model.EasyModePresets
 import com.pox.kernelmanager.data.model.EasyModeProfile
@@ -23,6 +23,7 @@ import com.pox.kernelmanager.data.model.EasyModeTier
 import com.pox.kernelmanager.data.repo.TuningRepository
 import com.pox.kernelmanager.ui.components.PoxTopAppBar
 import com.pox.kernelmanager.ui.components.SectionHeader
+import com.pox.kernelmanager.ui.theme.PoxCard
 import com.pox.kernelmanager.ui.viewmodel.FeaturesViewModel
 import kotlinx.coroutines.launch
 
@@ -64,50 +65,35 @@ fun TuningScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Mode Selector: Easy vs Advanced Segmented Switch
-            Surface(
+            // Segmented Button Row: Easy vs Advanced
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                SingleChoiceSegmentedButtonRow(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    TuningModeTab.values().forEach { tab ->
-                        val isSelected = selectedTab == tab
-                        Surface(
+                    TuningModeTab.entries.forEachIndexed { index, tab ->
+                        SegmentedButton(
+                            selected = selectedTab == tab,
                             onClick = { selectedTab = tab },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.padding(vertical = 10.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = TuningModeTab.entries.size),
+                            icon = {
+                                SegmentedButtonDefaults.Icon(active = selectedTab == tab) {
                                     Icon(
                                         imageVector = if (tab == TuningModeTab.EASY) Icons.Default.Tune else Icons.Default.Build,
                                         contentDescription = null,
-                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = tab.title,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
+                        ) {
+                            Text(
+                                text = tab.title,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
                 }
@@ -135,7 +121,7 @@ fun TuningScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun EasyModeView(
     onApplyPreset: (com.pox.kernelmanager.data.model.EasyPresetConfig) -> Unit
@@ -143,6 +129,7 @@ private fun EasyModeView(
     var selectedTier by remember { mutableStateOf(TuningRepository.getActiveEasyTier()) }
     var selectedProfile by remember { mutableStateOf(TuningRepository.getActiveEasyProfile()) }
     val scrollState = rememberScrollState()
+    val tierScrollState = rememberScrollState()
 
     val currentConfig = remember(selectedTier, selectedProfile) {
         EasyModePresets.getPreset(selectedTier, selectedProfile)
@@ -154,32 +141,37 @@ private fun EasyModeView(
             .verticalScroll(scrollState)
             .padding(bottom = 24.dp)
     ) {
-        // Section: Tier Selector (5 Tiers)
+        // Section: Tier Selector (Scrollable horizontally to prevent squishing)
         SectionHeader(
             title = "Performance Tiers",
-            subtitle = "Select performance envelope from ultra-efficient to uncapped peak"
+            subtitle = "Swipe to select power envelope from Battery Saver to Gaming"
         )
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(tierScrollState)
                 .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            EasyModeTier.values().forEach { tier ->
+            EasyModeTier.entries.forEach { tier ->
                 val isSelected = selectedTier == tier
                 FilterChip(
                     selected = isSelected,
                     onClick = { selectedTier = tier },
-                    label = { Text(tier.title) },
+                    label = {
+                        Text(
+                            text = tier.title,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    },
                     leadingIcon = {
                         Icon(
                             imageVector = tier.icon,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(18.dp)
                         )
-                    },
-                    modifier = Modifier.weight(1f)
+                    }
                 )
             }
         }
@@ -198,16 +190,16 @@ private fun EasyModeView(
                 .padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            EasyModeProfile.values().forEach { profile ->
+            EasyModeProfile.entries.forEach { profile ->
                 val isSelected = selectedProfile == profile
                 Surface(
                     onClick = { selectedProfile = profile },
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
                     modifier = Modifier.weight(1f)
                 ) {
                     Column(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(14.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -215,13 +207,15 @@ private fun EasyModeView(
                             imageVector = profile.icon,
                             contentDescription = null,
                             tint = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                         Text(
                             text = profile.title,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -231,7 +225,7 @@ private fun EasyModeView(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Preset Details Hero Card
-        com.pox.kernelmanager.ui.theme.PoxCard(
+        PoxCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
@@ -242,55 +236,57 @@ private fun EasyModeView(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(44.dp)
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = selectedTier.icon,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-                        Column {
-                            Text(
-                                text = "${selectedTier.title} • ${selectedProfile.title}",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = selectedTier.subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = selectedTier.icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "${selectedTier.title} • ${selectedProfile.title}",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = selectedTier.subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
-                // Summary Chips
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                // Summary Chips wrapped with FlowRow to prevent horizontal clipping
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     currentConfig.summaryHighlights.forEach { highlight ->
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest
                         ) {
                             Text(
                                 text = highlight,
                                 style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
@@ -304,10 +300,11 @@ private fun EasyModeView(
                 Text(
                     text = "Configured Kernel Features:",
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
-                ConfigParamRow("Governor / Gaming Mode", when (currentConfig.gamingMode) {
+                ConfigParamRow("Governor Mode", when (currentConfig.gamingMode) {
                     -1 -> "Powersave Governor (-1)"
                     1 -> "Gaming Mode Boost (1)"
                     2 -> "Extreme Boost Max OPP (2)"
@@ -319,27 +316,23 @@ private fun EasyModeView(
                     3 -> "Performance Peak"
                     else -> "Balanced"
                 })
-                ConfigParamRow("BORE Scheduler", "Active (Burst Scale: ${currentConfig.burstPenaltyScale}, Offset: ${currentConfig.burstPenaltyOffset})")
-                ConfigParamRow("Touch Sampling Rate", if (currentConfig.touchGameMode) "240Hz High Polling Active" else "Standard 120Hz")
-                ConfigParamRow("Hardware Charge Wattage", "${currentConfig.chargeWatt}W Locked (Dual Switch)")
-                ConfigParamRow("Silicon Health Calibration", when (currentConfig.healthCalibration) {
-                    2 -> "Performance Guard (OPP Shield)"
-                    3 -> "Maximum Longevity (Voltage Safe)"
-                    else -> "Auto-Adaptive (Zero Brownouts)"
+                ConfigParamRow("BORE Scheduler", "Scale: ${currentConfig.burstPenaltyScale}, Offset: ${currentConfig.burstPenaltyOffset}")
+                ConfigParamRow("Touch Sampling", if (currentConfig.touchGameMode) "240Hz High Polling" else "Standard 120Hz")
+                ConfigParamRow("Charge Wattage", "${currentConfig.chargeWatt}W Locked")
+                ConfigParamRow("Health Calibration", when (currentConfig.healthCalibration) {
+                    2 -> "Performance Guard"
+                    3 -> "Longevity Safe"
+                    else -> "Auto-Adaptive"
                 })
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-                val tokens = com.pox.kernelmanager.ui.theme.LocalThemeTokens.current
                 Button(
                     onClick = { onApplyPreset(currentConfig) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                    shape = tokens.pillShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = tokens.themeAccent
-                    )
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
@@ -348,9 +341,11 @@ private fun EasyModeView(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Apply ${selectedTier.title} (${selectedProfile.title}) Preset",
+                        text = "Apply ${selectedTier.title} Preset",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -364,7 +359,7 @@ private fun EasyModeView(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             shape = RoundedCornerShape(18.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
         ) {
             Row(
                 modifier = Modifier.padding(16.dp),
@@ -373,15 +368,15 @@ private fun EasyModeView(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(36.dp)
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.Psychology,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(20.dp)
+                            tint = MaterialTheme.colorScheme.onSecondary,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
@@ -390,12 +385,12 @@ private fun EasyModeView(
                         text = "Adaptive Silicon Calibration Armed",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                     Text(
                         text = "The background engine learns your battery degradation and silicon voltage margins to optimize preset efficiency.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
                     )
                 }
             }
@@ -406,20 +401,28 @@ private fun EasyModeView(
 @Composable
 private fun ConfigParamRow(label: String, value: String) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
         )
+        Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = value,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1.2f, fill = false),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
