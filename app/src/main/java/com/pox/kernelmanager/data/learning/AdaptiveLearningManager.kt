@@ -44,15 +44,41 @@ object AdaptiveLearningManager {
         // Optional initialization
     }
 
+    private fun readSysfs(path: String): String? {
+        val file = java.io.File(path)
+        if (!file.exists() || !file.canRead()) return null
+        return try {
+            file.readText().trim().takeIf { it.isNotEmpty() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     fun getStats(): LearningStats {
+        val directCycles = readSysfs("/sys/class/power_supply/battery/cycle_count")?.toIntOrNull()
+        val realCycles = if (directCycles != null && directCycles > 0) directCycles else prefs.getInt(KEY_TOTAL_CYCLES, 0)
+
+        val fullUah = readSysfs("/sys/class/power_supply/battery/charge_full")?.toFloatOrNull()
+        val designUah = readSysfs("/sys/class/power_supply/battery/charge_full_design")?.toFloatOrNull()
+        val realDegradation = if (fullUah != null && designUah != null && designUah > 0) {
+            (fullUah / designUah).coerceIn(0.5f, 1.0f)
+        } else {
+            prefs.getFloat(KEY_DEGRADATION, 0.98f)
+        }
+        val realEfficiency = (realDegradation * 100).toInt().coerceIn(50, 100)
+
+        val rawTemp = readSysfs("/sys/class/power_supply/battery/temp")?.toIntOrNull()
+            ?: readSysfs(KernelNodes.TEMP_LIMIT_SYS)?.toIntOrNull() ?: 280
+        val realTempC = (rawTemp / 10.0f).coerceIn(10.0f, 65.0f)
+
         return LearningStats(
             isAutoEnabled = prefs.getBoolean(KEY_AUTO_ENABLED, true),
-            totalCycles = prefs.getInt(KEY_TOTAL_CYCLES, 12),
-            averageLoadTempC = prefs.getFloat(KEY_AVG_TEMP, 38.2f),
-            efficiencyIndex = prefs.getInt(KEY_EFFICIENCY, 96),
-            batteryDegradationFactor = prefs.getFloat(KEY_DEGRADATION, 0.99f),
+            totalCycles = realCycles,
+            averageLoadTempC = prefs.getFloat(KEY_AVG_TEMP, realTempC),
+            efficiencyIndex = realEfficiency,
+            batteryDegradationFactor = realDegradation,
             siliconOppOffsetMhz = prefs.getInt(KEY_OPP_OFFSET, 0),
-            lastCalibratedTimestamp = prefs.getString(KEY_LAST_CALIBRATED, "Today, 14:32") ?: "Today, 14:32"
+            lastCalibratedTimestamp = prefs.getString(KEY_LAST_CALIBRATED, "Not Yet Calibrated") ?: "Not Yet Calibrated"
         )
     }
 
@@ -71,20 +97,30 @@ object AdaptiveLearningManager {
         currentProfile: EasyModeProfile
     ): LearningStats = withContext(Dispatchers.IO) {
         val vbus = ShellUtils.fastRead("/sys/class/power_supply/battery/voltage_now")?.toIntOrNull()?.div(1000) ?: 4100
-        val tempRaw = ShellUtils.fastRead(KernelNodes.TEMP_LIMIT_SYS)?.toIntOrNull() ?: 380
-        val currentTemp = tempRaw / 10f
+        val rawTemp = ShellUtils.fastRead("/sys/class/power_supply/battery/temp")?.toIntOrNull()
+            ?: ShellUtils.fastRead(KernelNodes.TEMP_LIMIT_SYS)?.toIntOrNull() ?: 280
+        val currentTemp = rawTemp / 10.0f
 
-        val currentCycles = prefs.getInt(KEY_TOTAL_CYCLES, 12) + 1
-        val avgTemp = ((38.0f * (currentCycles - 1)) + currentTemp) / currentCycles
-        val efficiency = (92 + (currentCycles % 7)).coerceIn(90, 100)
+        val directCycles = ShellUtils.fastRead("/sys/class/power_supply/battery/cycle_count")?.toIntOrNull()
+        val realCycles = if (directCycles != null && directCycles > 0) directCycles else prefs.getInt(KEY_TOTAL_CYCLES, 0) + 1
+
+        val fullUah = ShellUtils.fastRead("/sys/class/power_supply/battery/charge_full")?.toFloatOrNull()
+        val designUah = ShellUtils.fastRead("/sys/class/power_supply/battery/charge_full_design")?.toFloatOrNull()
+        val realDegradation = if (fullUah != null && designUah != null && designUah > 0) {
+            (fullUah / designUah).coerceIn(0.5f, 1.0f)
+        } else {
+            0.98f
+        }
+        val realEfficiency = (realDegradation * 100).toInt().coerceIn(50, 100)
 
         val formatter = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
         val timestamp = formatter.format(Date())
 
         prefs.edit()
-            .putInt(KEY_TOTAL_CYCLES, currentCycles)
-            .putFloat(KEY_AVG_TEMP, avgTemp)
-            .putInt(KEY_EFFICIENCY, efficiency)
+            .putInt(KEY_TOTAL_CYCLES, realCycles)
+            .putFloat(KEY_AVG_TEMP, currentTemp)
+            .putInt(KEY_EFFICIENCY, realEfficiency)
+            .putFloat(KEY_DEGRADATION, realDegradation)
             .putString(KEY_LAST_CALIBRATED, timestamp)
             .apply()
 

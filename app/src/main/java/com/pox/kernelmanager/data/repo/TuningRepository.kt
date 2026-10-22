@@ -329,15 +329,17 @@ object TuningRepository {
                 ?: prefs.getInt("temp_limit", 48)
         } else prefs.getInt("temp_limit", 48)
 
-        // xswapd is a MIUI/HyperOS userspace daemon.
+        // In-kernel xswapd or MIUI /dev/memcg cgroup
         val xswapdEnable = if (isRoot && isSupported(TuningFeature.XSWAPD)) {
-            node("/dev/memcg/memory.xswapd.enable") != "0"
+            val kernelVal = node("/sys/kernel/xswapd/enabled") ?: node("/dev/memcg/memory.xswapd.enable")
+            kernelVal != null && kernelVal.trim() != "0"
         } else prefs.getBoolean("xswapd_enable", false)
 
         val savedXswapdQuota = prefs.getLong("xswapd_quota", 1024L)
         val xswapdQuota = if (isRoot && isSupported(TuningFeature.XSWAPD)) {
-            (node("/dev/memcg/memory.xswapd.quota")?.toLongOrNull()
-                ?: (savedXswapdQuota * 1024 * 1024)) / (1024 * 1024)
+            (node("/sys/kernel/xswapd/watermark_kb")?.toLongOrNull()?.div(1024)
+                ?: node("/dev/memcg/memory.xswapd.quota")?.toLongOrNull()?.div(1024 * 1024))
+                ?: savedXswapdQuota
         } else savedXswapdQuota
 
         // Touch, display and haptics
@@ -862,14 +864,15 @@ object TuningRepository {
         )
     }
 
-    // ---- xswapd: userspace daemon ----
+    // ---- xswapd: in-kernel compaction engine or userspace daemon ----
 
     suspend fun setXswapdEnabled(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
         prefs.edit().putBoolean("xswapd_enable", enable).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("xswapd")
         if (!isSupported(TuningFeature.XSWAPD)) return@withContext unsupported(TuningFeature.XSWAPD)
         applyKernelWrites(
-            successLabel = if (enable) "xswapd daemon enabled" else "xswapd daemon disabled",
+            successLabel = if (enable) "xswapd engine enabled" else "xswapd engine disabled",
+            "/sys/kernel/xswapd/enabled" to if (enable) "1" else "0",
             "/dev/memcg/memory.xswapd.enable" to if (enable) "1" else "0"
         )
     }
@@ -881,7 +884,8 @@ object TuningRepository {
         }
         if (!isSupported(TuningFeature.XSWAPD)) return@withContext unsupported(TuningFeature.XSWAPD)
         applyKernelWrites(
-            successLabel = "Triggered 100MB xswapd memory reclaim",
+            successLabel = "Triggered in-kernel xswapd autonomous reclaim pass",
+            "/sys/kernel/xswapd/trigger" to "1",
             "/dev/memcg/memory.xswapd.reclaim" to "104857600"
         )
     }

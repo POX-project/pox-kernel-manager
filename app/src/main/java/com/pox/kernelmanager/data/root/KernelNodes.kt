@@ -302,6 +302,9 @@ object KernelNodes {
         FPS_FORCE_DISABLE,
         PERF_IOCTL,
         PROFILE_PROC,
+        "/sys/kernel/xswapd/enabled",
+        "/sys/kernel/xswapd/trigger",
+        "/sys/kernel/xswapd/status",
         "/dev/memcg/memory.xswapd.enable",
         "/sys/block/zram0/disksize",
         "/sys/block/zram0/mm_stat"
@@ -385,7 +388,7 @@ object KernelNodes {
 
         val dynFsync = writable(DYNAMIC_FSYNC_PROC)
         val driveDroid = writable(DRIVEDROID_CDROM_PROC) || writable(DRIVEDROID_CDROM_SYS) || writable(DRIVEDROID_LUN0_SYS)
-        val xswapd = writable("/dev/memcg/memory.xswapd.enable")
+        val xswapd = writable("/sys/kernel/xswapd/enabled") || writable("/sys/kernel/xswapd/trigger") || writable("/dev/memcg/memory.xswapd.enable")
 
         val fastCharge = writable(FAST_CHARGE_PROC)
         val bypassCharging = writable(BATTERY_BYPASS_PROC) || writable(BATTERY_BYPASS_SYS)

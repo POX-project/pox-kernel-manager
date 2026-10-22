@@ -227,18 +227,18 @@ fun DashboardScreen(
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             ) {
                 StatusBadge(
-                    text = "Health Guard: Armed",
-                    isActive = true,
+                    text = if (uiState.stats.isBypassActive) "Bypass: Active" else "Direct Power: Ready",
+                    isActive = uiState.stats.isBypassActive || uiState.stats.isCharging,
                     activeColor = MaterialTheme.colorScheme.primary
                 )
                 StatusBadge(
-                    text = "OPP Calibrated",
-                    isActive = true,
+                    text = if (uiState.stats.isFastCharging) "Fast Charge: Active" else "Charge Guard: Normal",
+                    isActive = uiState.stats.isFastCharging,
                     activeColor = MaterialTheme.colorScheme.secondary
                 )
                 StatusBadge(
-                    text = "Anti-Freeze: 0 Drops",
-                    isActive = true,
+                    text = "Battery Health: ${uiState.stats.batteryHealth}",
+                    isActive = uiState.stats.batteryHealth.equals("Good", true),
                     activeColor = MaterialTheme.colorScheme.tertiary
                 )
             }

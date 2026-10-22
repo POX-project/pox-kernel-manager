@@ -246,8 +246,11 @@ object HardwareRepository {
 
             // Current & Wattage
             val currentUa = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
-            val rawMa = if (currentUa != 0 && abs(currentUa) < 10000000) {
-                currentUa / 1000
+            val sysfsCurrent = readDirect("/sys/class/power_supply/battery/current_now")?.toIntOrNull()
+                ?: ShellUtils.fastRead("/sys/class/power_supply/battery/current_now")?.toIntOrNull() ?: 0
+            val effectiveUa = if (currentUa != 0 && abs(currentUa) < 10000000) currentUa else sysfsCurrent
+            val rawMa = if (effectiveUa != 0 && abs(effectiveUa) < 10000000) {
+                effectiveUa / 1000
             } else {
                 if (isCharging) (if (isFastCharge) 2400 else 500) else -350
             }

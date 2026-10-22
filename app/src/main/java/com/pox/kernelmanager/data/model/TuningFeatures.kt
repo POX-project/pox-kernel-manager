@@ -42,8 +42,8 @@ enum class TuningFeature(val label: String, val unsupportedReason: String) {
     SCHED_CSTATE_AWARE("C-State aware scheduling", "Grant root - /proc/sys/kernel/sched_cstate_aware is not writable"),
     VM_SWAPPINESS("VM swappiness", "Grant root - /proc/sys/vm/swappiness is not writable"),
 
-    // Present only on some ROMs or with a module installed.
-    XSWAPD("xswapd", "Needs /dev/memcg - MIUI/HyperOS ROMs only"),
+    // Present on Pox Kernel or MIUI/HyperOS ROMs.
+    XSWAPD("xswapd", "Grant root - /sys/kernel/xswapd/enabled is not writable"),
     DYNAMIC_FSYNC("Dynamic fsync", "Grant root - /proc/perfmgr/dynamic_fsync is not writable"),
     DRIVEDROID("DriveDroid USB CD-ROM", "Grant root - /proc/perfmgr/usb_cdrom or LUN cdrom attribute is not writable"),
 
