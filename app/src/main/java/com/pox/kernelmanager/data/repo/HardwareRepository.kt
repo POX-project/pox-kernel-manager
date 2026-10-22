@@ -9,6 +9,7 @@ import com.pox.kernelmanager.data.model.CpuCoreStat
 import com.pox.kernelmanager.data.model.DeviceInfo
 import com.pox.kernelmanager.data.model.HardwareStats
 import com.pox.kernelmanager.data.root.KernelNodes
+import com.pox.kernelmanager.data.root.PoxConfigBridge
 import com.pox.kernelmanager.data.root.ShellUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -61,7 +62,7 @@ object HardwareRepository {
     }
 
     suspend fun getHardwareStats(): HardwareStats = withContext(Dispatchers.IO) {
-        // Collect telemetry in a single batched shell execution to prevent IPC overhead & UI lag
+        // Collect telemetry using zero-overhead direct File reads; only unreadable nodes fallback to shell
         val statNodes = listOf(
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq",
             "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq",
@@ -78,7 +79,22 @@ object HardwareRepository {
             "/sys/block/zram0/mm_stat",
             "/sys/block/zram0/disksize"
         )
-        val batch = ShellUtils.batchRead(statNodes)
+        val batch = HashMap<String, String>()
+        val unreadable = mutableListOf<String>()
+
+        for (node in statNodes) {
+            val content = readDirect(node)
+            if (content != null) {
+                batch[node] = content
+            } else {
+                unreadable.add(node)
+            }
+        }
+
+        if (unreadable.isNotEmpty() && ShellUtils.isRootAvailable()) {
+            val shellBatch = ShellUtils.batchRead(unreadable)
+            batch.putAll(shellBatch)
+        }
 
         // 1. CPU Cores stats (Helio G90T Octa-Core: 0-5 Little A55, 6-7 Big A76)
         val cores = mutableListOf<CpuCoreStat>()
@@ -148,6 +164,9 @@ object HardwareRepository {
         var batStatus = "Charging (USB)"
         var batCurrentMa = 450
 
+        // Single config query from kernel to eliminate polling lag
+        val poxConfig = PoxConfigBridge.readConfig()
+
         try {
             val context = PoxApplication.instance
             val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
@@ -162,20 +181,23 @@ object HardwareRepository {
             batCapacity = when {
                 capacityFromBm in 1..100 -> capacityFromBm
                 levelFromIntent >= 0 && scale > 0 -> (levelFromIntent * 100) / scale
-                else -> ShellUtils.fastRead("/sys/class/power_supply/battery/capacity")?.toIntOrNull() ?: 78
+                else -> readDirect("/sys/class/power_supply/battery/capacity")?.toIntOrNull()
+                    ?: ShellUtils.fastRead("/sys/class/power_supply/battery/capacity")?.toIntOrNull() ?: 78
             }
 
             // Real Battery Voltage
             val vExtra = bIntent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
             batVoltageMv = if (vExtra > 0) vExtra else {
-                val rawV = ShellUtils.fastRead("/sys/class/power_supply/battery/voltage_now")?.toIntOrNull() ?: 4148000
+                val rawV = readDirect("/sys/class/power_supply/battery/voltage_now")?.toIntOrNull()
+                    ?: ShellUtils.fastRead("/sys/class/power_supply/battery/voltage_now")?.toIntOrNull() ?: 4148000
                 if (rawV > 100000) rawV / 1000 else rawV
             }
 
             // Real Temperature
             val tExtra = bIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
             batTempC = if (tExtra > 0) (tExtra / 10.0f) else {
-                val rawT = ShellUtils.fastRead("/sys/class/power_supply/battery/temp")?.toIntOrNull() ?: 248
+                val rawT = readDirect("/sys/class/power_supply/battery/temp")?.toIntOrNull()
+                    ?: ShellUtils.fastRead("/sys/class/power_supply/battery/temp")?.toIntOrNull() ?: 248
                 rawT / 10.0f
             }
 
@@ -194,14 +216,18 @@ object HardwareRepository {
                 BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
                 BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
                 BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "Failure"
-                else -> ShellUtils.fastRead("/sys/class/power_supply/battery/health") ?: "Good"
+                else -> readDirect("/sys/class/power_supply/battery/health")
+                    ?: ShellUtils.fastRead("/sys/class/power_supply/battery/health") ?: "Good"
             }
 
             val batTech = bIntent?.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY)
+                ?: readDirect("/sys/class/power_supply/battery/technology")
                 ?: ShellUtils.fastRead("/sys/class/power_supply/battery/technology")
                 ?: "Li-poly"
 
-            val fastChargeNode = ShellUtils.fastRead(KernelNodes.FAST_CHARGE_PROC)
+            val fastChargeNode = poxConfig["fast_charge"]
+                ?: readDirect(KernelNodes.FAST_CHARGE_PROC)
+                ?: ShellUtils.fastRead(KernelNodes.FAST_CHARGE_PROC)
             val isFastCharge = fastChargeNode == "1" || (pluggedInt == BatteryManager.BATTERY_PLUGGED_AC && fastChargeNode != "0")
 
             val chargerSource = when {
@@ -230,11 +256,13 @@ object HardwareRepository {
         } catch (_: Exception) { }
 
         val wattage = (batVoltageMv * abs(batCurrentMa)) / 1000000f
-        val bypassMode = ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_PROC) == "1" ||
-            ShellUtils.fastRead(KernelNodes.BATTERY_BYPASS_SYS) == "1"
+        val bypassMode = (poxConfig["battery_bypass"] == "1") ||
+            (readDirect(KernelNodes.BATTERY_BYPASS_PROC) == "1") ||
+            (readDirect(KernelNodes.BATTERY_BYPASS_SYS) == "1")
 
-        val kernelBatStatus = ShellUtils.fastRead(KernelNodes.BATTERY_STATUS_PROC)
-            ?: ShellUtils.fastRead(KernelNodes.BATTERY_STATUS_SYS)
+        val kernelBatStatus = readDirect(KernelNodes.BATTERY_STATUS_PROC)
+            ?: readDirect(KernelNodes.BATTERY_STATUS_SYS)
+            ?: (if (bypassMode) "BYPASS" else null)
         val finalBatStatus = if (!kernelBatStatus.isNullOrBlank()) {
             when {
                 kernelBatStatus.contains("BYPASS", true) -> "Direct Bypass (Idle on Charger)"
@@ -244,12 +272,15 @@ object HardwareRepository {
             }
         } else batStatus
 
-        val chargeLimitCap = ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_PROC)?.toIntOrNull()
-            ?: ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_SYS)?.toIntOrNull()
+        val chargeLimitCap = poxConfig["battery_limit"]?.toIntOrNull()
+            ?: readDirect(KernelNodes.BATTERY_LIMIT_PROC)?.toIntOrNull()
+            ?: readDirect(KernelNodes.BATTERY_LIMIT_SYS)?.toIntOrNull()
             ?: 100
 
-        val designCapacity = (ShellUtils.fastRead("/sys/class/power_supply/battery/charge_full_design")?.toIntOrNull() ?: 4500000) / 1000
-        val estimatedCapacity = (ShellUtils.fastRead("/sys/class/power_supply/battery/charge_full")?.toIntOrNull() ?: 4385000) / 1000
+        val designCapacity = (readDirect("/sys/class/power_supply/battery/charge_full_design")?.toIntOrNull()
+            ?: 4500000) / 1000
+        val estimatedCapacity = (readDirect("/sys/class/power_supply/battery/charge_full")?.toIntOrNull()
+            ?: 4385000) / 1000
 
         HardwareStats(
             cpuCores = cores,
@@ -284,5 +315,16 @@ object HardwareRepository {
     private fun parseKb(line: String): Long {
         val parts = line.split("\\s+".toRegex())
         return parts.getOrNull(1)?.toLongOrNull() ?: 0L
+    }
+
+    private fun readDirect(path: String): String? {
+        return try {
+            val file = File(path)
+            if (file.exists() && file.canRead()) {
+                file.readText().trim()
+            } else null
+        } catch (_: Exception) {
+            null
+        }
     }
 }

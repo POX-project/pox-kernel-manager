@@ -139,6 +139,8 @@ object KernelNodes {
     const val HBM_MODE_PROC = "/proc/perfmgr/hbm_mode"
     const val TORCH_BRIGHTNESS_PROC = "/proc/perfmgr/torch_brightness"
     const val TORCH_BRIGHTNESS_SYS = "/sys/kernel/torch_brightness"
+    const val POX_CONFIG_PROC = "/proc/perfmgr/pox_config"
+    const val POX_CONFIG_SYS = "/sys/kernel/pox_config"
 
     const val CAMERA_4K60_PROC = "/proc/perfmgr/camera_4k60"
     const val CAMERA_4K60_SYS = "/sys/kernel/camera_4k60"
@@ -277,6 +279,8 @@ object KernelNodes {
         COLOR_CUSTOM_SYS,
         HBM_MODE_PROC,
         TORCH_BRIGHTNESS_PROC,
+        POX_CONFIG_PROC,
+        POX_CONFIG_SYS,
         CAMERA_4K60_PROC,
         CAMERA_SLOG3_PROC,
         WQ_POWER_EFFICIENT,

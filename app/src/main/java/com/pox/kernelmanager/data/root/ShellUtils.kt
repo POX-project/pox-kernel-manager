@@ -343,16 +343,16 @@ object ShellUtils {
     suspend fun fastRead(path: String): String? = withContext(Dispatchers.IO) {
         val quoted = shellQuote(path)
 
-        // Only attempt direct File read for world-readable paths that won't trigger SELinux denial audits
-        try {
-            if (!path.startsWith("/sys/kernel/") && !path.startsWith("/proc/sys/kernel/")) {
+        // Only attempt direct File read for non-kernel paths (never /sys, /proc, /dev) to eliminate SELinux avc: denied audits
+        if (!path.startsWith("/sys/") && !path.startsWith("/proc/") && !path.startsWith("/dev/")) {
+            try {
                 val file = File(path)
                 if (file.canRead()) {
                     val content = file.bufferedReader().use { it.readText() }.trim()
                     if (content.isNotEmpty()) return@withContext content
                 }
-            }
-        } catch (_: Exception) { }
+            } catch (_: Exception) { }
+        }
 
         if (!isRootAvailable()) return@withContext null
         try {
@@ -383,29 +383,49 @@ suspend fun fastWrite(
 ): Boolean = withContext(Dispatchers.IO) {
     val quotedPath = shellQuote(path)
 
+    // Never attempt unprivileged File writes to kernel/system nodes (/sys, /proc, /dev)
+    if (!path.startsWith("/sys/") && !path.startsWith("/proc/") && !path.startsWith("/dev/")) {
+        try {
+            val file = File(path)
+            if (file.exists() && file.canWrite()) {
+                file.writeText(value)
+                if (verify == null) return@withContext true
+                val content = file.readText().trim()
+                return@withContext verify(content)
+            }
+        } catch (_: Exception) { }
+    }
+
+    if (!isRootAvailable()) {
+        android.util.Log.w("PoxKernelManager", "fastWrite rejected: root unavailable for $path -> $value")
+        return@withContext false
+    }
+
     try {
-        val file = File(path)
-        if (file.exists() && file.canWrite()) {
-            file.writeText(value)
-            if (verify == null) return@withContext true
-            val content = file.readText().trim()
-            return@withContext verify(content)
+        var written = Shell.cmd("printf '%s\\n' ${shellQuote(value)} > $quotedPath").exec()
+        if (!written.isSuccess) {
+            // Attempt with chmod 666 fallback if permission was blocked
+            Shell.cmd("chmod 666 $quotedPath 2>/dev/null").exec()
+            written = Shell.cmd("printf '%s\\n' ${shellQuote(value)} > $quotedPath").exec()
         }
-    } catch (_: Exception) { }
 
-    if (!isRootAvailable()) return@withContext false
-
-    try {
-        val written = Shell.cmd("printf '%s\\n' ${shellQuote(value)} > $quotedPath").exec()
-        if (!written.isSuccess) return@withContext false
+        if (!written.isSuccess) {
+            android.util.Log.w("PoxKernelManager", "fastWrite rejected: write to $path failed (code=${written.code}, out=${written.out.joinToString()})")
+            return@withContext false
+        }
 
         if (verify != null) {
             val readBack = Shell.cmd("cat $quotedPath 2>/dev/null").exec()
             val content = readBack.out.joinToString("\n")
-            return@withContext verify(content)
+            val verified = verify(content)
+            if (!verified) {
+                android.util.Log.w("PoxKernelManager", "fastWrite verification rejected for $path. Content was: $content")
+            }
+            return@withContext verified
         }
         true
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        android.util.Log.e("PoxKernelManager", "fastWrite exception on $path", e)
         false
     }
 }
