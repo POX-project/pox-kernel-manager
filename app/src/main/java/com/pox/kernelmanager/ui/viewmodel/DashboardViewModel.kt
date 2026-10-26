@@ -2,10 +2,12 @@ package com.pox.kernelmanager.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.pox.kernelmanager.PoxApplication
 import com.pox.kernelmanager.data.model.DeviceInfo
 import com.pox.kernelmanager.data.model.HardwareStats
 import com.pox.kernelmanager.data.repo.HardwareRepository
 import com.pox.kernelmanager.data.root.ShellUtils
+import com.pox.kernelmanager.util.TelegramShare
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -89,5 +91,34 @@ class DashboardViewModel : ViewModel() {
     private fun stopHardwareMonitorLoop() {
         monitorJob?.cancel()
         monitorJob = null
+    }
+
+    /** Share current kernel device info to Telegram via system share sheet. */
+    fun shareKernelInfo() {
+        viewModelScope.launch {
+            val info = HardwareRepository.getDeviceInfo()
+            val tb = StringBuilder()
+            tb.append("Pox Kernel Device Info\n")
+            tb.append("=====================\n")
+            tb.append("Device: ${info.model}\n")
+            tb.append("Android: ${info.sdk}\n")
+            tb.append("Kernel: ${info.kernelRelease}\n")
+            tb.append("Root: ${if (info.rootGranted) "Granted" else "Not granted"}\n")
+            tb.append("\nShared from Pox Kernel Manager")
+            TelegramShare.shareText(context = PoxApplication.instance, text = tb.toString(), title = "Pox Kernel Info")
+        }
+    }
+
+    /** Share build info (variant/commit) to Telegram via system share sheet. */
+    fun shareBuildInfo(variant: String, commit: String, gofileLink: String?, release: Boolean) {
+        viewModelScope.launch {
+            TelegramShare.shareBuildInfo(
+                context = PoxApplication.instance,
+                variant = variant,
+                commit = commit,
+                gofileLink = gofileLink,
+                release = release
+            )
+        }
     }
 }
