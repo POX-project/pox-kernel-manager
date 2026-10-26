@@ -24,7 +24,24 @@ object HardwareRepository {
 
         val isPox = utsRelease.contains("Pox", ignoreCase = true) || procVersion.contains("Pox", ignoreCase = true)
 
-        val edition = when {
+        // Pox kernels expose variant/commit separately because UTS_RELEASE is
+        // intentionally variant-free (always 4.14.357-Pox). Older builds did
+        // encode the edition and commit in utsRelease, so keep that as a
+        // fallback for devices that have not updated yet.
+        val poxBuild = ShellUtils.fastRead(KernelNodes.POX_BUILD_PROC)
+            ?.lineSequence()
+            ?.mapNotNull { line ->
+                val separator = line.indexOf('=')
+                if (separator > 0) {
+                    line.substring(0, separator) to line.substring(separator + 1).trim()
+                } else {
+                    null
+                }
+            }
+            ?.toMap()
+            .orEmpty()
+
+        val legacyEdition = when {
             utsRelease.contains("Onyx-Sultan-APatch", true) -> "Onyx-Sultan-APatch"
             utsRelease.contains("Onyx-Sultan", true) -> "Onyx-Sultan"
             utsRelease.contains("Onyx-KSU-Next", true) -> "Onyx-KSU-Next"
@@ -36,7 +53,10 @@ object HardwareRepository {
         }
 
         val commitRegex = Regex("([a-f0-9]{7,12})")
-        val commit = commitRegex.find(utsRelease)?.value ?: ""
+        val edition = poxBuild["variant"].orEmpty().ifBlank { legacyEdition }
+        val commit = poxBuild["commit"].orEmpty().ifBlank {
+            commitRegex.find(utsRelease)?.value ?: ""
+        }
 
         // One probe for the whole root state: provider, version and grant status come
 // from the same snapshot instead of three independent round-trips.

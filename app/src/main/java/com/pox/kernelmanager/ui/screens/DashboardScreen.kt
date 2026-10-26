@@ -142,13 +142,23 @@ fun DashboardScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = uiState.deviceInfo.kernelRelease.ifEmpty { "4.14.357-Pox-Kernel" },
+                            text = uiState.deviceInfo.kernelRelease.ifEmpty { "4.14.357-Pox" },
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        if (uiState.deviceInfo.commitHash.isNotBlank()) {
+                            Text(
+                                text = "Commit ${uiState.deviceInfo.commitHash}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
                         Text(
                             text = "${uiState.deviceInfo.deviceModel} (${uiState.deviceInfo.codename}) • ${uiState.deviceInfo.socName}",
                             style = MaterialTheme.typography.labelSmall,
@@ -343,7 +353,8 @@ fun DashboardScreen(
                             DetailRow("Architecture", "ARM64 (aarch64 v8.2-A)")
                             DetailRow("SoC Platform", "MediaTek Helio G90T (MT6785)")
                             DetailRow("Device Codename", "begonia / begoniain")
-                            DetailRow("Kernel Edition", uiState.deviceInfo.kernelEdition)
+                            DetailRow("Variant", uiState.deviceInfo.kernelEdition)
+                            DetailRow("Commit", uiState.deviceInfo.commitHash.ifBlank { "unknown" })
                             DetailRow("SELinux Policy", uiState.deviceInfo.selinuxStatus)
                             DetailRow("Root Solution", uiState.deviceInfo.rootProvider.displayName)
                             DetailRow("Sultan Debloat", "Active (CONFIG_SULTAN_DEBLOAT)")

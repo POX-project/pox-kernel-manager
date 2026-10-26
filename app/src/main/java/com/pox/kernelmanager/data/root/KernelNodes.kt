@@ -87,6 +87,8 @@ object KernelNodes {
 
     const val GAMING_MODE_PROC = "/proc/perfmgr/gaming_mode"
     const val GAMING_MODE_SYS = "/sys/kernel/gaming_mode"
+    /** Variant/commit metadata; UTS_RELEASE is always 4.14.357-Pox. */
+    const val POX_BUILD_PROC = "/proc/perfmgr/pox_build"
     const val KPROFILES_MODE = "/sys/kernel/kprofiles/kp_mode"
     const val KPROFILES_AUTO = "/sys/kernel/kprofiles/auto_kp"
     const val KPROFILES_CUSTOM_SYS = "/sys/kernel/kprofiles/custom_params"
