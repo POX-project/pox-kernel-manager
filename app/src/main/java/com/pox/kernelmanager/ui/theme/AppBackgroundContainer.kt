@@ -11,12 +11,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import com.pox.kernelmanager.R
 
 @Composable
 fun AppBackgroundContainer(
@@ -45,12 +45,7 @@ fun AppBackgroundContainer(
                 }
 
                 if (bgMode == BackgroundMode.BUILTIN_SUNSET) {
-                    Image(
-                        painter = painterResource(id = R.drawable.bg_pox_default),
-                        contentDescription = "Built-in Sunset Background",
-                        contentScale = ContentScale.Crop,
-                        modifier = blurModifier
-                    )
+                    BuiltInSunsetBackground(modifier = blurModifier)
                 } else if (bgMode == BackgroundMode.CUSTOM_IMAGE) {
                     val bitmap = remember(customUri) {
                         if (customUri != null) {
@@ -70,12 +65,9 @@ fun AppBackgroundContainer(
                             modifier = blurModifier
                         )
                     } else {
-                        Image(
-                            painter = painterResource(id = R.drawable.bg_pox_default),
-                            contentDescription = "Default Background Wallpaper",
-                            contentScale = ContentScale.Crop,
-                            modifier = blurModifier
-                        )
+                        // No usable custom image: fall back to the built-in
+                        // sunset instead of an empty (solid scrim) backdrop.
+                        BuiltInSunsetBackground(modifier = blurModifier)
                     }
                 }
 
@@ -90,4 +82,29 @@ fun AppBackgroundContainer(
             }
         }
     }
+}
+
+/**
+ * Bundled "Sunset" backdrop, drawn as a gradient instead of a bitmap.
+ *
+ * The previous implementation pointed at `R.drawable.bg_pox_default`, an asset
+ * that was never committed, so the module did not compile. A generated brush
+ * keeps the APK small, scales to any aspect ratio without cropping artefacts
+ * and can never go missing from `res/drawable` again.
+ */
+@Composable
+private fun BuiltInSunsetBackground(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.background(
+            Brush.verticalGradient(
+                listOf(
+                    Color(0xFF120C24), // night sky
+                    Color(0xFF3B1B4D),
+                    Color(0xFF7E2F4B),
+                    Color(0xFFC4553A),
+                    Color(0xFFF0A65C)  // horizon glow
+                )
+            )
+        )
+    )
 }

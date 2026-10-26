@@ -1,32 +1,17 @@
 package com.pox.kernelmanager.ui.components
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.TexturePaint
-import androidx.compose.ui.platform.LocalContextAware
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.lifecycleScope
-import com.pox.kernelmanager.BuildConfig
-import com.pox.kernelmanager.R
-import com.pox.kernelmanager.ui.viewmodel.DashboardViewModel
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,8 +23,6 @@ fun PoxTopAppBar(
     onBack: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null
 ) {
-    val context = LocalContext.current
-
     TopAppBar(
         navigationIcon = {
             if (onBack != null) {

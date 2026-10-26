@@ -100,8 +100,11 @@ class DashboardViewModel : ViewModel() {
             val tb = StringBuilder()
             tb.append("Pox Kernel Device Info\n")
             tb.append("=====================\n")
-            tb.append("Device: ${info.model}\n")
-            tb.append("Android: ${info.sdk}\n")
+            tb.append("Device: ${info.deviceModel} (${info.codename})\n")
+            tb.append(
+                "Android: ${android.os.Build.VERSION.RELEASE} " +
+                    "(SDK ${android.os.Build.VERSION.SDK_INT})\n"
+            )
             tb.append("Kernel: ${info.kernelRelease}\n")
             tb.append("Root: ${if (info.rootGranted) "Granted" else "Not granted"}\n")
             tb.append("\nShared from Pox Kernel Manager")
