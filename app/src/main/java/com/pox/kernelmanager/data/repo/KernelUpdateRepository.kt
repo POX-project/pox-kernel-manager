@@ -39,8 +39,8 @@ object KernelUpdateRepository {
 
     const val KERNEL_REPO_PRIMARY = "POX-project/pox-begonia-kernel"
     const val KERNEL_REPO_FALLBACK = "txorav/pox-kernel-begonia"
-    const val KERNEL_REPO_M20LTE = "txorav/kernel_samsung_universal7885"
-    const val MANAGER_REPO = "POX-project/pox-kernel-manager"
+    const val KERNEL_REPO_M20LTE = "txorav/pox-kernel-m20lte"
+    const val MANAGER_REPO = "txorav/pox-kernel-manager-m20lte"
 
     private const val GITHUB_API = "https://api.github.com/repos"
 
@@ -182,7 +182,8 @@ object KernelUpdateRepository {
             for (art in artifacts) {
                 if (!art.name.endsWith(".zip")) continue
                 val edition = detectEditionName(art.name)
-                val downloadUrl = "https://nightly.link/$KERNEL_REPO_PRIMARY/actions/runs/${run.id}/${art.name}"
+                val repoTarget = getKernelRepo()
+                val downloadUrl = "https://nightly.link/$repoTarget/actions/runs/${run.id}/${art.name}"
                 items.add(
                     UpdateItem(
                         id = "run_${run.id}_${art.id}",
