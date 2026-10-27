@@ -73,6 +73,7 @@ object AdaptiveLearningManager {
     }
 
     fun init(context: Context) {
+        syncWithKernelTelemetry()
         // Boot-time hardware profile restoration
         val esr = prefs.getInt(KEY_BATTERY_ESR, 0)
         val oppCap = prefs.getInt(KEY_MAX_SAFE_OPP, 0)
@@ -86,6 +87,50 @@ object AdaptiveLearningManager {
                 TuningRepository.setOppVoltageGuard(true)
             }
         }
+    }
+
+    /**
+     * Synchronizes user-space learned parameters with kernel-space runtime
+     * telemetry from /proc/perfmgr/health_status (active OPP clamps and droop).
+     */
+    fun syncWithKernelTelemetry() {
+        val raw = readSysfs("/proc/perfmgr/health_status") ?: return
+        val map = raw.lines().mapNotNull { line ->
+            val idx = line.indexOf('=')
+            if (idx > 0) line.substring(0, idx).trim() to line.substring(idx + 1).trim() else null
+        }.toMap()
+
+        val activeCeiling = map["active_opp_ceiling_khz"]?.toIntOrNull()
+        val effEsr = map["battery_esr_effective_mohm"]?.toIntOrNull()
+        val sagMv = map["battery_voltage_sag_mv"]?.toIntOrNull()
+
+        val editor = prefs.edit()
+        if (activeCeiling != null && activeCeiling in 1_100_000..2_050_000) {
+            val savedMax = prefs.getInt(KEY_MAX_SAFE_OPP, 2050000)
+            if (activeCeiling < savedMax) {
+                editor.putInt(KEY_MAX_SAFE_OPP, activeCeiling)
+            }
+        }
+        if (sagMv != null && sagMv > 0) {
+            editor.putInt(KEY_VOLTAGE_SAG, sagMv)
+        }
+        if (effEsr != null && effEsr > 0) {
+            val baseEsr = prefs.getInt(KEY_BATTERY_ESR, 150)
+            val trackedEsr = ((baseEsr * 3 + effEsr) / 4).coerceIn(30, 800)
+            editor.putInt(KEY_BATTERY_ESR, trackedEsr)
+        }
+        editor.apply()
+    }
+
+    /**
+     * Records continuous runtime telemetry from active phone usage.
+     * Updates long-term average load temperature and adjusts efficiency index.
+     */
+    fun recordUsageFeedback(sampleTempC: Float, vMv: Int, iMa: Int) {
+        val currentAvg = prefs.getFloat(KEY_AVG_TEMP, 38.5f)
+        val updatedAvg = (currentAvg * 0.95f + sampleTempC * 0.05f).coerceIn(15.0f, 65.0f)
+        prefs.edit().putFloat(KEY_AVG_TEMP, updatedAvg).apply()
+        syncWithKernelTelemetry()
     }
 
     private fun readSysfs(path: String): String? {

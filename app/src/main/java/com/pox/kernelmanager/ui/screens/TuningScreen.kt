@@ -1,6 +1,7 @@
 package com.pox.kernelmanager.ui.screens
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -17,6 +18,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.pox.kernelmanager.data.learning.AdaptiveLearningManager
+import com.pox.kernelmanager.data.model.BrainlessPresets
+import com.pox.kernelmanager.data.model.BrainlessProfile
 import com.pox.kernelmanager.data.model.EasyModePresets
 import com.pox.kernelmanager.data.model.EasyModeProfile
 import com.pox.kernelmanager.data.model.EasyModeTier
@@ -28,6 +32,7 @@ import com.pox.kernelmanager.ui.viewmodel.FeaturesViewModel
 import kotlinx.coroutines.launch
 
 enum class TuningModeTab(val title: String) {
+    BRAINLESS("Brainless"),
     EASY("Easy Mode"),
     ADVANCED("Advanced Mode")
 }
@@ -39,7 +44,7 @@ fun TuningScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var selectedTab by remember { mutableStateOf(TuningModeTab.EASY) }
+    var selectedTab by remember { mutableStateOf(TuningModeTab.BRAINLESS) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -65,7 +70,7 @@ fun TuningScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Segmented Button Row: Easy vs Advanced
+            // Segmented Button Row: Brainless vs Easy vs Advanced
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -82,7 +87,11 @@ fun TuningScreen(
                             icon = {
                                 SegmentedButtonDefaults.Icon(active = selectedTab == tab) {
                                     Icon(
-                                        imageVector = if (tab == TuningModeTab.EASY) Icons.Default.Tune else Icons.Default.Build,
+                                        imageVector = when (tab) {
+                                            TuningModeTab.BRAINLESS -> Icons.Default.Bolt
+                                            TuningModeTab.EASY -> Icons.Default.Tune
+                                            TuningModeTab.ADVANCED -> Icons.Default.Build
+                                        },
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp)
                                     )
@@ -105,6 +114,15 @@ fun TuningScreen(
                 modifier = Modifier.fillMaxSize()
             ) { tab ->
                 when (tab) {
+                    TuningModeTab.BRAINLESS -> BrainlessModeView(
+                        onApplyProfile = { profile ->
+                            scope.launch {
+                                val result = TuningRepository.applyBrainlessProfile(profile)
+                                snackbarHostState.showSnackbar(result.message)
+                                viewModel.refresh()
+                            }
+                        }
+                    )
                     TuningModeTab.EASY -> EasyModeView(
                         onApplyPreset = { preset ->
                             scope.launch {
@@ -131,8 +149,12 @@ private fun EasyModeView(
     val scrollState = rememberScrollState()
     val tierScrollState = rememberScrollState()
 
+    val learningStats = remember { AdaptiveLearningManager.getStats() }
     val currentConfig = remember(selectedTier, selectedProfile) {
         EasyModePresets.getPreset(selectedTier, selectedProfile)
+    }
+    val adaptedConfig = remember(selectedTier, selectedProfile, learningStats) {
+        EasyModePresets.adaptPreset(currentConfig, learningStats)
     }
 
     Column(
@@ -254,14 +276,33 @@ private fun EasyModeView(
                         }
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "${selectedTier.title} • ${selectedProfile.title}",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "${selectedTier.title} • ${selectedProfile.title}",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (adaptedConfig.isAdapted) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.tertiaryContainer
+                                ) {
+                                    Text(
+                                        text = "Adapted",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
                         Text(
                             text = selectedTier.subtitle,
                             style = MaterialTheme.typography.bodySmall,
@@ -304,26 +345,82 @@ private fun EasyModeView(
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                ConfigParamRow("Governor Mode", when (currentConfig.gamingMode) {
+                ConfigParamRow("Governor Mode", when (adaptedConfig.effectiveGamingMode) {
                     -1 -> "Powersave Governor (-1)"
                     1 -> "Gaming Mode Boost (1)"
                     2 -> "Extreme Boost Max OPP (2)"
                     else -> "Balanced Governor (0)"
                 })
-                ConfigParamRow("Kprofiles Tier", when (currentConfig.kprofileLevel) {
+                ConfigParamRow("Kprofiles Tier", when (adaptedConfig.effectiveKprofileLevel) {
                     1 -> "Battery Priority"
                     2 -> "Balanced Daily"
                     3 -> "Performance Peak"
                     else -> "Balanced"
                 })
-                ConfigParamRow("BORE Scheduler", "Scale: ${currentConfig.burstPenaltyScale}, Offset: ${currentConfig.burstPenaltyOffset}")
-                ConfigParamRow("Touch Sampling", if (currentConfig.touchGameMode) "240Hz High Polling" else "Standard 120Hz")
-                ConfigParamRow("Charge Wattage", "${currentConfig.chargeWatt}W Locked")
-                ConfigParamRow("Health Calibration", when (currentConfig.healthCalibration) {
+                ConfigParamRow(
+                    "Big Cluster Peak",
+                    if (adaptedConfig.effectiveOppCeilingKhz < currentConfig.baseOppCeilingKhz)
+                        "${adaptedConfig.effectiveOppCeilingKhz / 1000} MHz (Guarded)"
+                    else
+                        "${adaptedConfig.effectiveOppCeilingKhz / 1000} MHz Max"
+                )
+                ConfigParamRow(
+                    "BORE Scheduler",
+                    "Scale: ${adaptedConfig.effectiveBurstPenaltyScale}, Offset: ${adaptedConfig.effectiveBurstPenaltyOffset}"
+                )
+                ConfigParamRow("Touch Sampling", if (adaptedConfig.effectiveTouchGameMode) "240Hz High Polling" else "Standard 120Hz")
+                ConfigParamRow(
+                    "Charge Wattage",
+                    if (adaptedConfig.effectiveChargeWatt < currentConfig.chargeWatt)
+                        "${adaptedConfig.effectiveChargeWatt}W (Thermal Scaled)"
+                    else
+                        "${adaptedConfig.effectiveChargeWatt}W Locked"
+                )
+                ConfigParamRow("Health Calibration", when (adaptedConfig.effectiveHealthCalibration) {
                     2 -> "Performance Guard"
-                    3 -> "Longevity Safe"
+                    3 -> "Longevity Mode"
                     else -> "Auto-Adaptive"
                 })
+
+                if (adaptedConfig.adaptationNotes.isNotEmpty()) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Psychology,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Silicon & Usage Adaptations Active",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        adaptedConfig.adaptationNotes.forEach { note ->
+                            Text(
+                                text = note,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -341,7 +438,7 @@ private fun EasyModeView(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Apply ${selectedTier.title} Preset",
+                        text = if (adaptedConfig.isAdapted) "Apply Adapted ${selectedTier.title} Preset" else "Apply ${selectedTier.title} Preset",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -382,13 +479,229 @@ private fun EasyModeView(
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Adaptive Silicon Calibration Armed",
+                        text = "Continuous Silicon & Usage Learning Active",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                     Text(
-                        text = "The background engine learns your battery degradation and silicon voltage margins to optimize preset efficiency.",
+                        text = "Presets adjust their operational OPP ceilings, charging wattages, and scheduler parameters continuously as your battery health, internal resistance (DCIR), and phone usage change over time.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BrainlessModeView(
+    onApplyProfile: (BrainlessProfile) -> Unit
+) {
+    var activeProfile by remember { mutableStateOf(TuningRepository.getActiveBrainlessProfile()) }
+    val learningStats = remember { AdaptiveLearningManager.getStats() }
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(bottom = 24.dp)
+    ) {
+        SectionHeader(
+            title = "Brainless Profiles",
+            subtitle = "Zero effort. One-tap tuning continuously personalized to your silicon."
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            BrainlessProfile.entries.forEach { profile ->
+                val isActive = activeProfile == profile
+                val baseConfig = remember(profile) { BrainlessPresets.getPreset(profile) }
+                val adaptedConfig = remember(profile, learningStats) {
+                    BrainlessPresets.adaptPreset(baseConfig, learningStats)
+                }
+
+                PoxCard(
+                    onClick = {
+                        activeProfile = profile
+                        onApplyProfile(profile)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = when (profile) {
+                                    BrainlessProfile.BATTERY_BACKUP -> MaterialTheme.colorScheme.tertiaryContainer
+                                    BrainlessProfile.STABILITY -> MaterialTheme.colorScheme.primaryContainer
+                                    BrainlessProfile.PERFORMANCE -> MaterialTheme.colorScheme.errorContainer
+                                },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = profile.icon,
+                                        contentDescription = null,
+                                        tint = when (profile) {
+                                            BrainlessProfile.BATTERY_BACKUP -> MaterialTheme.colorScheme.onTertiaryContainer
+                                            BrainlessProfile.STABILITY -> MaterialTheme.colorScheme.onPrimaryContainer
+                                            BrainlessProfile.PERFORMANCE -> MaterialTheme.colorScheme.onErrorContainer
+                                        },
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = profile.title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (isActive) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = MaterialTheme.colorScheme.primary
+                                        ) {
+                                            Text(
+                                                text = "ACTIVE",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Text(
+                                    text = profile.subtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            RadioButton(
+                                selected = isActive,
+                                onClick = {
+                                    activeProfile = profile
+                                    onApplyProfile(profile)
+                                }
+                            )
+                        }
+
+                        Text(
+                            text = profile.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        // Highlights chips
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            baseConfig.highlights.forEach { tag ->
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest
+                                ) {
+                                    Text(
+                                        text = tag,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        if (adaptedConfig.isAdapted) {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoMode,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = adaptedConfig.adaptationNotes.firstOrNull() ?: "Tuned by Silicon Calibration",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Info Banner
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Psychology,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Continuous Self-Tuning Active",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Text(
+                        text = "Brainless mode monitors your battery resistance, thermal gradient, and voltage sag to continuously adapt operating frequencies and charging limits without manual intervention.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
                     )

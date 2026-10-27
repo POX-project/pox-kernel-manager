@@ -3,6 +3,10 @@ package com.pox.kernelmanager.data.model
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.pox.kernelmanager.data.learning.LearningStats
+import java.util.Locale
+import kotlin.math.max
+import kotlin.math.min
 
 enum class EasyModeTier(
     val title: String,
@@ -36,7 +40,7 @@ enum class EasyModeTier(
     ),
     EXTREME(
         title = "Extreme",
-        subtitle = "Uncapped big-core boost, zero throttle and peak hardware wattage",
+        subtitle = "Uncapped big-core boost, zero governor latency and peak hardware wattage",
         icon = Icons.Default.LocalFireDepartment,
         badge = "Peak"
     )
@@ -77,11 +81,33 @@ data class EasyPresetConfig(
     val touchSensitivity: Int,
     val fastChargeEnabled: Boolean,
     val chargeWatt: Int,
+    val baseOppCeilingKhz: Int = 2050000,
     val dynamicFsync: Boolean,
     val wakelockBlocker: Boolean,
     val trueTone: Boolean,
     val healthCalibration: Int,
     val summaryHighlights: List<String>
+)
+
+data class AdaptedPresetConfig(
+    val base: EasyPresetConfig,
+    val effectiveGamingMode: Int,
+    val effectiveKprofileLevel: Int,
+    val effectiveSchedBoreEnabled: Boolean,
+    val effectiveBurstPenaltyScale: Int,
+    val effectiveBurstPenaltyOffset: Int,
+    val effectiveBurstInheritType: Int,
+    val effectiveTouchGameMode: Boolean,
+    val effectiveTouchSensitivity: Int,
+    val effectiveFastChargeEnabled: Boolean,
+    val effectiveChargeWatt: Int,
+    val effectiveOppCeilingKhz: Int,
+    val effectiveHealthCalibration: Int,
+    val effectiveDynamicFsync: Boolean,
+    val effectiveWakelockBlocker: Boolean,
+    val effectiveTrueTone: Boolean,
+    val isAdapted: Boolean,
+    val adaptationNotes: List<String>
 )
 
 object EasyModePresets {
@@ -101,12 +127,13 @@ object EasyModePresets {
                     touchGameMode = false,
                     touchSensitivity = 0,
                     fastChargeEnabled = true,
-                    chargeWatt = 10,
+                    chargeWatt = 10, // Gentle 10W preserves battery chemistry
+                    baseOppCeilingKhz = 1664000,
                     dynamicFsync = true,
                     wakelockBlocker = true,
                     trueTone = true,
                     healthCalibration = 3, // Longevity
-                    summaryHighlights = listOf("Powersave Governor", "10W Gentle Charging", "Max Background Freeze", "Cool Temp")
+                    summaryHighlights = listOf("1.66 GHz Eco Ceiling", "10W Gentle Charging", "BORE Background Freeze", "Cool Thermals")
                 )
                 EasyModeProfile.BALANCED -> EasyPresetConfig(
                     tier = tier,
@@ -120,12 +147,13 @@ object EasyModePresets {
                     touchGameMode = false,
                     touchSensitivity = 0,
                     fastChargeEnabled = true,
-                    chargeWatt = 15,
+                    chargeWatt = 12,
+                    baseOppCeilingKhz = 1784000,
                     dynamicFsync = true,
                     wakelockBlocker = true,
                     trueTone = true,
                     healthCalibration = 3,
-                    summaryHighlights = listOf("Low OPP Ceiling", "15W Standard Charge", "Wakelock Shield", "Extended SOT")
+                    summaryHighlights = listOf("1.78 GHz Efficiency Cap", "12W Safe Charge", "Wakelock Shield", "Extended SOT")
                 )
                 EasyModeProfile.MAX_PERFORMANCE -> EasyPresetConfig(
                     tier = tier,
@@ -139,12 +167,13 @@ object EasyModePresets {
                     touchGameMode = false,
                     touchSensitivity = 1,
                     fastChargeEnabled = true,
-                    chargeWatt = 18,
+                    chargeWatt = 15,
+                    baseOppCeilingKhz = 1989000,
                     dynamicFsync = true,
                     wakelockBlocker = true,
                     trueTone = true,
                     healthCalibration = 1,
-                    summaryHighlights = listOf("Balanced Governor", "18W Fast Charge", "Mild Boost", "Stable Power")
+                    summaryHighlights = listOf("Balanced Governor", "15W Standard Charge", "BORE Prioritization", "Stable Power")
                 )
             }
 
@@ -161,12 +190,13 @@ object EasyModePresets {
                     touchGameMode = false,
                     touchSensitivity = 0,
                     fastChargeEnabled = true,
-                    chargeWatt = 18,
+                    chargeWatt = 15,
+                    baseOppCeilingKhz = 1989000,
                     dynamicFsync = true,
                     wakelockBlocker = true,
                     trueTone = true,
                     healthCalibration = 1,
-                    summaryHighlights = listOf("Daily Battery Saver", "18W Fast Charge", "BORE Tuned", "Auto-Adaptive OPP")
+                    summaryHighlights = listOf("Daily Battery Saver", "15W Safe Fast Charge", "BORE Tuned", "Auto-Adaptive Sag Guard")
                 )
                 EasyModeProfile.BALANCED -> EasyPresetConfig(
                     tier = tier,
@@ -181,11 +211,12 @@ object EasyModePresets {
                     touchSensitivity = 0,
                     fastChargeEnabled = true,
                     chargeWatt = 18,
+                    baseOppCeilingKhz = 2050000,
                     dynamicFsync = false,
                     wakelockBlocker = true,
                     trueTone = true,
                     healthCalibration = 1,
-                    summaryHighlights = listOf("Default Kernel Spec", "18W Standard Fast Charge", "Smooth 60 FPS", "Balanced Energy")
+                    summaryHighlights = listOf("Full 2.05 GHz Boost", "18W Standard Fast Charge", "Smooth 60 FPS", "Balanced Energy")
                 )
                 EasyModeProfile.MAX_PERFORMANCE -> EasyPresetConfig(
                     tier = tier,
@@ -200,6 +231,7 @@ object EasyModePresets {
                     touchSensitivity = 1,
                     fastChargeEnabled = true,
                     chargeWatt = 18,
+                    baseOppCeilingKhz = 2050000,
                     dynamicFsync = false,
                     wakelockBlocker = false,
                     trueTone = true,
@@ -222,6 +254,7 @@ object EasyModePresets {
                     touchSensitivity = 1,
                     fastChargeEnabled = true,
                     chargeWatt = 18,
+                    baseOppCeilingKhz = 2050000,
                     dynamicFsync = false,
                     wakelockBlocker = true,
                     trueTone = true,
@@ -240,12 +273,13 @@ object EasyModePresets {
                     touchGameMode = true,
                     touchSensitivity = 2,
                     fastChargeEnabled = true,
-                    chargeWatt = 27,
+                    chargeWatt = 18,
+                    baseOppCeilingKhz = 2050000,
                     dynamicFsync = false,
                     wakelockBlocker = true,
                     trueTone = true,
                     healthCalibration = 2, // Perf Guard
-                    summaryHighlights = listOf("27W Quick Charge", "Gaming Boost Active", "High Touch Sampling", "Zero UI Janks")
+                    summaryHighlights = listOf("18W Rated Fast Charge", "Gaming Boost Active", "High Touch Sampling", "Zero UI Janks")
                 )
                 EasyModeProfile.MAX_PERFORMANCE -> EasyPresetConfig(
                     tier = tier,
@@ -259,12 +293,13 @@ object EasyModePresets {
                     touchGameMode = true,
                     touchSensitivity = 2,
                     fastChargeEnabled = true,
-                    chargeWatt = 30,
+                    chargeWatt = 18,
+                    baseOppCeilingKhz = 2050000,
                     dynamicFsync = false,
                     wakelockBlocker = false,
                     trueTone = true,
                     healthCalibration = 2,
-                    summaryHighlights = listOf("30W Quick Charge", "Aggressive BORE Scheduler", "Fast Task Dispatch", "Sustained FPS")
+                    summaryHighlights = listOf("18W Fast Charge", "Aggressive BORE Scheduler", "Fast Task Dispatch", "Sustained FPS")
                 )
             }
 
@@ -281,17 +316,18 @@ object EasyModePresets {
                     touchGameMode = true,
                     touchSensitivity = 2,
                     fastChargeEnabled = true,
-                    chargeWatt = 30,
+                    chargeWatt = 18,
+                    baseOppCeilingKhz = 2050000,
                     dynamicFsync = false,
                     wakelockBlocker = true,
                     trueTone = true,
                     healthCalibration = 2,
-                    summaryHighlights = listOf("30W Charge Lock", "High-FPS Gaming", "Balanced Thermal Floor", "Bypass Ready")
+                    summaryHighlights = listOf("18W Fast Charge", "High-FPS Gaming", "Balanced Thermal Floor", "Adaptive OPP Guard")
                 )
                 EasyModeProfile.BALANCED -> EasyPresetConfig(
                     tier = tier,
                     profile = profile,
-                    gamingMode = 2, // Extreme gaming
+                    gamingMode = 2, // Extreme gaming governor
                     kprofileLevel = 3,
                     schedBoreEnabled = true,
                     burstPenaltyScale = 1024,
@@ -300,12 +336,13 @@ object EasyModePresets {
                     touchGameMode = true,
                     touchSensitivity = 3,
                     fastChargeEnabled = true,
-                    chargeWatt = 45,
+                    chargeWatt = 18,
+                    baseOppCeilingKhz = 2050000,
                     dynamicFsync = false,
                     wakelockBlocker = false,
                     trueTone = true,
                     healthCalibration = 2,
-                    summaryHighlights = listOf("45W Flash Charge", "Extreme EAS Boost 100", "240Hz Competitive Touch", "FPSGO Lock")
+                    summaryHighlights = listOf("18W Fast Charge", "Extreme EAS Boost 100", "240Hz Competitive Touch", "FPSGO Lock")
                 )
                 EasyModeProfile.MAX_PERFORMANCE -> EasyPresetConfig(
                     tier = tier,
@@ -319,12 +356,13 @@ object EasyModePresets {
                     touchGameMode = true,
                     touchSensitivity = 3,
                     fastChargeEnabled = true,
-                    chargeWatt = 67,
+                    chargeWatt = 18,
+                    baseOppCeilingKhz = 2050000,
                     dynamicFsync = false,
                     wakelockBlocker = false,
                     trueTone = true,
                     healthCalibration = 2,
-                    summaryHighlights = listOf("67W Turbo Charge", "Peak Core OPP Lock", "Zero Throttle Governor", "Competitive Gaming")
+                    summaryHighlights = listOf("18W High-Current Fast Charge", "Peak Core OPP Lock", "Zero Throttle Governor", "Competitive Gaming")
                 )
             }
 
@@ -341,12 +379,13 @@ object EasyModePresets {
                     touchGameMode = true,
                     touchSensitivity = 3,
                     fastChargeEnabled = true,
-                    chargeWatt = 45,
+                    chargeWatt = 18,
+                    baseOppCeilingKhz = 2050000,
                     dynamicFsync = false,
                     wakelockBlocker = false,
                     trueTone = true,
                     healthCalibration = 2,
-                    summaryHighlights = listOf("45W High Power", "Extreme EAS Boost", "Thermal Guard Active", "Peak GPU Clock")
+                    summaryHighlights = listOf("18W Rated Max Charge", "Extreme EAS Boost", "Thermal Guard Active", "Peak GPU Clock")
                 )
                 EasyModeProfile.BALANCED -> EasyPresetConfig(
                     tier = tier,
@@ -360,12 +399,13 @@ object EasyModePresets {
                     touchGameMode = true,
                     touchSensitivity = 3,
                     fastChargeEnabled = true,
-                    chargeWatt = 67,
+                    chargeWatt = 18,
+                    baseOppCeilingKhz = 2050000,
                     dynamicFsync = false,
                     wakelockBlocker = false,
                     trueTone = true,
                     healthCalibration = 2,
-                    summaryHighlights = listOf("67W Ultra Charge", "Uncapped Big Cores", "Minimal Burst Penalty", "Ultra Responsiveness")
+                    summaryHighlights = listOf("18W Hardware Max Charge", "Uncapped Big Cores", "Minimal Burst Penalty", "Ultra Responsiveness")
                 )
                 EasyModeProfile.MAX_PERFORMANCE -> EasyPresetConfig(
                     tier = tier,
@@ -379,14 +419,103 @@ object EasyModePresets {
                     touchGameMode = true,
                     touchSensitivity = 3,
                     fastChargeEnabled = true,
-                    chargeWatt = 90,
+                    chargeWatt = 18,
+                    baseOppCeilingKhz = 2050000,
                     dynamicFsync = false,
                     wakelockBlocker = false,
                     trueTone = true,
                     healthCalibration = 2,
-                    summaryHighlights = listOf("90W Maximum Hardware Charge", "Zero Governor Latency", "Direct Core Affinity", "Benchmark / Record Setting")
+                    summaryHighlights = listOf("18W PMIC Hardware Limit", "Zero Governor Latency", "Direct Core Affinity", "Benchmark / Record Setting")
                 )
             }
         }
+    }
+
+    /**
+     * Dynamically adapts a preset according to physical battery impedance,
+     * transient voltage sag, die thermal rise gradient, and usage degradation.
+     */
+    fun getAdaptedPreset(tier: EasyModeTier, profile: EasyModeProfile, stats: LearningStats): AdaptedPresetConfig {
+        val base = getPreset(tier, profile)
+        return adaptPreset(base, stats)
+    }
+
+    fun adaptPreset(base: EasyPresetConfig, stats: LearningStats): AdaptedPresetConfig {
+        val notes = mutableListOf<String>()
+
+        // 1. Safe Big Cluster OPP Ceiling
+        var effectiveOpp = base.baseOppCeilingKhz
+        if (stats.maxSafeOppKhz in 1_100_000 until effectiveOpp) {
+            val diffMhz = (effectiveOpp - stats.maxSafeOppKhz) / 1000
+            effectiveOpp = stats.maxSafeOppKhz
+            notes.add("⚡ Big cluster OPP capped to ${effectiveOpp / 1000} MHz (-${diffMhz} MHz) to prevent PMIC UVLO shutdown")
+        }
+        if (stats.batteryDegradationFactor < 0.85f && base.tier == EasyModeTier.LOW) {
+            if (effectiveOpp > 1664000) {
+                effectiveOpp = 1664000
+                notes.add("🔋 Big cluster frequency clamped to 1664 MHz efficiency sweet-spot for aged battery")
+            }
+        }
+
+        // 2. Safe Charging Rate & Joule Heating Prevention
+        var effectiveWatt = base.chargeWatt.coerceIn(5, 18)
+        if (stats.dcirMohm >= 220 || stats.averageLoadTempC >= 41.0f) {
+            if (effectiveWatt > 15) {
+                val delta = effectiveWatt - 15
+                effectiveWatt = 15
+                notes.add("🌡️ Fast charging tuned to 15W (-${delta}W) to curb Joule heating (DCIR: ${stats.dcirMohm} mΩ, Avg Temp: ${String.format(Locale.US, "%.1f", stats.averageLoadTempC)}°C)")
+            }
+            if (stats.dcirMohm >= 260 && effectiveWatt > 12) {
+                effectiveWatt = 12
+                notes.add("🛡️ Fast charge reduced to 12W to protect high-impedance battery cell")
+            }
+        }
+
+        // 3. Schedutil Slew Rate vs Thermal Gradient
+        if (stats.thermalRiseRateMcs >= 1300) {
+            notes.add("🔥 Schedutil up-rate dampened to avoid thermal runaway (Die heating slope: ${stats.thermalRiseRateMcs} m°C/s)")
+        } else if (stats.thermalRiseRateMcs <= 800) {
+            notes.add("❄️ Schedutil up-rate accelerated for instant boost response (Cool die gradient: ${stats.thermalRiseRateMcs} m°C/s)")
+        }
+
+        // 4. BORE CFS Scheduler Burst Penalties
+        var effectiveScale = base.burstPenaltyScale
+        var effectiveOffset = base.burstPenaltyOffset
+        if (stats.efficiencyIndex < 85 && (base.tier == EasyModeTier.LOW || base.tier == EasyModeTier.NORMAL)) {
+            effectiveScale = min(2048, effectiveScale + 256)
+            notes.add("🧠 BORE burst penalty scale elevated to $effectiveScale (+256) to suppress background task drain")
+        }
+        if (base.tier in listOf(EasyModeTier.PRO, EasyModeTier.ULTRA, EasyModeTier.EXTREME) && stats.averageLoadTempC < 38.0f) {
+            effectiveOffset = max(0, effectiveOffset - 4)
+            notes.add("🚀 BORE burst penalty offset lowered to $effectiveOffset for reduced UI thread wakeup jitter")
+        }
+
+        // 5. Battery Degradation & Longevity Mode
+        var effectiveHealthMode = base.healthCalibration
+        if (stats.batteryDegradationFactor < 0.80f && effectiveHealthMode < 3) {
+            effectiveHealthMode = 3
+            notes.add("⚠️ Health Guard auto-elevated to Longevity mode due to severe battery wear (${String.format(Locale.US, "%.1f", stats.batteryDegradationFactor * 100)}% capacity)")
+        }
+
+        return AdaptedPresetConfig(
+            base = base,
+            effectiveGamingMode = base.gamingMode,
+            effectiveKprofileLevel = base.kprofileLevel,
+            effectiveSchedBoreEnabled = base.schedBoreEnabled,
+            effectiveBurstPenaltyScale = effectiveScale,
+            effectiveBurstPenaltyOffset = effectiveOffset,
+            effectiveBurstInheritType = base.burstInheritType,
+            effectiveTouchGameMode = base.touchGameMode,
+            effectiveTouchSensitivity = base.touchSensitivity,
+            effectiveFastChargeEnabled = base.fastChargeEnabled,
+            effectiveChargeWatt = effectiveWatt,
+            effectiveOppCeilingKhz = effectiveOpp,
+            effectiveHealthCalibration = effectiveHealthMode,
+            effectiveDynamicFsync = base.dynamicFsync,
+            effectiveWakelockBlocker = base.wakelockBlocker,
+            effectiveTrueTone = base.trueTone,
+            isAdapted = notes.isNotEmpty(),
+            adaptationNotes = notes
+        )
     }
 }
