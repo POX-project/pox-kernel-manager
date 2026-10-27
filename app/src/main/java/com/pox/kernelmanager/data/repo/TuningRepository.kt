@@ -829,7 +829,7 @@ object TuningRepository {
     }
 
     suspend fun setChargeWatt(watt: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        val clamped = watt.coerceIn(5, 120)
+        val clamped = watt.coerceIn(5, 18)
         prefs.edit().putInt("charge_watt", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Charge Watt")
         val fastChargeOn = prefs.getBoolean("fast_charge", true)
@@ -845,7 +845,7 @@ object TuningRepository {
     }
 
     suspend fun setPdMinWatt(watt: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        val clamped = watt.coerceIn(5, 100)
+        val clamped = watt.coerceIn(5, 18)
         prefs.edit().putInt("pd_min_watt", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("PD Min Watt")
         applyKernelWrites(
@@ -855,7 +855,7 @@ object TuningRepository {
     }
 
     suspend fun setPdMaxWatt(watt: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        val clamped = watt.coerceIn(5, 100)
+        val clamped = watt.coerceIn(5, 18)
         prefs.edit().putInt("pd_max_watt", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("PD Max Watt")
         applyKernelWrites(

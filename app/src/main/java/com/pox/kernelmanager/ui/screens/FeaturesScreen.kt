@@ -565,14 +565,14 @@ fun FeaturesScreenContent(
                         OutlinedTextField(
                             value = wattInputText,
                             onValueChange = { input ->
-                                val filtered = input.filter { it.isDigit() }.take(3)
+                                val filtered = input.filter { it.isDigit() }.take(2)
                                 wattInputText = filtered
                                 val parsed = filtered.toIntOrNull()
-                                if (parsed != null && parsed in 5..120) {
+                                if (parsed != null && parsed in 5..18) {
                                     viewModel.setChargeWatt(parsed)
                                 }
                             },
-                            label = { Text("Target Wattage (5W - 90W+)") },
+                            label = { Text("Target Wattage (5W - 18W Hardware Max)") },
                             suffix = { Text("W") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
@@ -588,7 +588,7 @@ fun FeaturesScreenContent(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            listOf(10, 18, 30, 45, 67, 90).forEach { preset ->
+                            listOf(5, 10, 12, 15, 18).forEach { preset ->
                                 FilterChip(
                                     selected = uiState.features.chargeWatt == preset,
                                     onClick = {
@@ -622,7 +622,7 @@ fun FeaturesScreenContent(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            listOf(5, 9, 15, 18).forEach { preset ->
+                            listOf(5, 9, 12, 15).forEach { preset ->
                                 FilterChip(
                                     selected = uiState.features.pdMinWatt == preset,
                                     onClick = { viewModel.setPdMinWatt(preset) },
@@ -640,7 +640,7 @@ fun FeaturesScreenContent(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            listOf(18, 30, 45, 65, 90).forEach { preset ->
+                            listOf(10, 12, 15, 18).forEach { preset ->
                                 FilterChip(
                                     selected = uiState.features.pdMaxWatt == preset,
                                     onClick = { viewModel.setPdMaxWatt(preset) },
