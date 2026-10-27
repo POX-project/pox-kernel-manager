@@ -11,5 +11,3 @@ app/build/
 *.apk
 output-metadata.json
 .kotlin
-*.jpg
-*.png
