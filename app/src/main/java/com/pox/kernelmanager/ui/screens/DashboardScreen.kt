@@ -351,14 +351,14 @@ fun DashboardScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             DetailRow("Release (UTS_RELEASE)", uiState.deviceInfo.kernelRelease)
-                            DetailRow("Architecture", "ARM64 (aarch64 v8.2-A)")
-                            DetailRow("SoC Platform", "MediaTek Helio G90T (MT6785)")
-                            DetailRow("Device Codename", "begonia / begoniain")
+                            DetailRow("Device", uiState.deviceInfo.deviceModel)
+                            DetailRow("Device Codename", uiState.deviceInfo.codename)
+                            DetailRow("SoC Platform", uiState.deviceInfo.socName)
+                            DetailRow("Kernel Base", uiState.deviceInfo.linuxVersion)
                             DetailRow("Variant", uiState.deviceInfo.kernelEdition)
                             DetailRow("Commit", uiState.deviceInfo.commitHash.ifBlank { "unknown" })
                             DetailRow("SELinux Policy", uiState.deviceInfo.selinuxStatus)
                             DetailRow("Root Solution", uiState.deviceInfo.rootProvider.displayName)
-                            DetailRow("Sultan Debloat", "Active (CONFIG_SULTAN_DEBLOAT)")
                             DetailRow("Dynamic Fsync", "Active (/proc/perfmgr/dynamic_fsync)")
                             DetailRow("Wakelock Shield", "Active (/proc/perfmgr/wakelock_blocker)")
                         }

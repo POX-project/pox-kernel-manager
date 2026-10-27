@@ -64,12 +64,21 @@ object HardwareRepository {
         val selinux = ShellUtils.detectSELinux()
         val noMount = ShellUtils.detectNoMount()
 
+        val detectedModel = android.os.Build.MODEL ?: "Android Device"
+        val detectedDevice = android.os.Build.DEVICE ?: "begonia"
+        val isM20 = detectedDevice.contains("m20", true) || detectedModel.contains("M20", true) ||
+            utsRelease.contains("m20", true) || utsRelease.contains("universal7885", true)
+        val soc = if (isM20) "Samsung Exynos 7904" else "MediaTek MT6785 (Helio G90T)"
+        val lVersion = if (procVersion.contains("4.4", true)) "Linux 4.4.177" else "Linux 4.14.357"
+        val model = if (isM20) "Samsung Galaxy M20" else (android.os.Build.MODEL ?: "Redmi Note 8 Pro")
+        val codename = if (isM20) "m20lte" else detectedDevice
+
         DeviceInfo(
-            deviceModel = android.os.Build.MODEL ?: "Redmi Note 8 Pro",
-            codename = android.os.Build.DEVICE ?: "begonia",
-            socName = "MediaTek MT6785 (Helio G90T)",
+            deviceModel = model,
+            codename = codename,
+            socName = soc,
             kernelRelease = utsRelease.ifEmpty { procVersion.take(40) },
-            linuxVersion = "Linux 4.14.357",
+            linuxVersion = lVersion,
             kernelEdition = edition,
             commitHash = commit,
             isPoxKernel = isPox,

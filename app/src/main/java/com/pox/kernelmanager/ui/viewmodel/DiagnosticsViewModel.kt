@@ -96,7 +96,9 @@ class DiagnosticsViewModel : ViewModel() {
                     appendLine("==========================================")
                     appendLine("POX KERNEL MANAGER DIAGNOSTIC REPORT 🇵🇸")
                     appendLine("Date: ${Date()}")
-                    appendLine("Device: Redmi Note 8 Pro (begonia / MT6785)")
+                    val devModel = android.os.Build.MODEL ?: "Android Device"
+                    val devCode = android.os.Build.DEVICE ?: "unknown"
+                    appendLine("Device: $devModel ($devCode)")
                     appendLine("Uname: $uname")
                     appendLine("SELinux: ${ShellUtils.detectSELinux()}")
                     val rootEnv = ShellUtils.environment()

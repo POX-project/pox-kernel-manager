@@ -39,9 +39,20 @@ object KernelUpdateRepository {
 
     const val KERNEL_REPO_PRIMARY = "POX-project/pox-begonia-kernel"
     const val KERNEL_REPO_FALLBACK = "txorav/pox-kernel-begonia"
+    const val KERNEL_REPO_M20LTE = "txorav/kernel_samsung_universal7885"
     const val MANAGER_REPO = "POX-project/pox-kernel-manager"
 
     private const val GITHUB_API = "https://api.github.com/repos"
+
+    private fun getKernelRepo(): String {
+        val dev = android.os.Build.DEVICE ?: ""
+        val model = android.os.Build.MODEL ?: ""
+        return if (dev.contains("m20", true) || model.contains("M20", true)) {
+            KERNEL_REPO_M20LTE
+        } else {
+            KERNEL_REPO_PRIMARY
+        }
+    }
 
     private fun fetchUrl(url: String): String {
         val request = Request.Builder()
@@ -56,10 +67,15 @@ object KernelUpdateRepository {
     }
 
     suspend fun fetchLatestReleases(): List<GithubRelease> = withContext(Dispatchers.IO) {
+        val repo = getKernelRepo()
         val releasesJson = try {
-            fetchUrl("$GITHUB_API/$KERNEL_REPO_PRIMARY/releases")
+            fetchUrl("$GITHUB_API/$repo/releases")
         } catch (_: Exception) {
-            fetchUrl("$GITHUB_API/$KERNEL_REPO_FALLBACK/releases")
+            if (repo == KERNEL_REPO_PRIMARY) {
+                fetchUrl("$GITHUB_API/$KERNEL_REPO_FALLBACK/releases")
+            } else {
+                fetchUrl("$GITHUB_API/$KERNEL_REPO_M20LTE/releases")
+            }
         }
         json.decodeFromString<List<GithubRelease>>(releasesJson)
     }
@@ -70,10 +86,15 @@ object KernelUpdateRepository {
     }
 
     suspend fun fetchKernelActionRuns(): List<GithubActionRun> = withContext(Dispatchers.IO) {
+        val repo = getKernelRepo()
         val runsJson = try {
-            fetchUrl("$GITHUB_API/$KERNEL_REPO_PRIMARY/actions/runs?status=success&per_page=12")
+            fetchUrl("$GITHUB_API/$repo/actions/runs?status=success&per_page=12")
         } catch (_: Exception) {
-            fetchUrl("$GITHUB_API/$KERNEL_REPO_FALLBACK/actions/runs?status=success&per_page=12")
+            if (repo == KERNEL_REPO_PRIMARY) {
+                fetchUrl("$GITHUB_API/$KERNEL_REPO_FALLBACK/actions/runs?status=success&per_page=12")
+            } else {
+                fetchUrl("$GITHUB_API/$KERNEL_REPO_M20LTE/actions/runs?status=success&per_page=12")
+            }
         }
         val response = json.decodeFromString<GithubRunsResponse>(runsJson)
         response.workflow_runs
