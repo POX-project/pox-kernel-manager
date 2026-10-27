@@ -401,7 +401,7 @@ object KernelUpdateRepository {
 
             // Check if there is an inner zip (e.g. actions artifact container)
             val innerZipCheck = ShellUtils.runCommand("ls /data/local/tmp/pox_flasher/ak3/*.zip 2>/dev/null | head -n 1")
-            val innerZip = innerZipCheck.out.firstOrNull()?.trim()
+            val innerZip = innerZipCheck.output.firstOrNull()?.trim()
             if (!innerZip.isNullOrEmpty() && innerZip.endsWith(".zip")) {
                 send(FlashProgressEvent("Unpacking Nested Artifact", "Unpacking inner artifact $innerZip..."))
                 ShellUtils.runCommand("unzip -o '$innerZip' -d /data/local/tmp/pox_flasher/ak3/")
@@ -576,4 +576,11 @@ data class FlashProgressEvent(
     val isFinished: Boolean = false,
     val isSuccess: Boolean = false,
     val error: String? = null
+)
+
+data class DownloadProgress(
+    val percent: Int,
+    val downloadedMb: Float,
+    val totalMb: Float,
+    val speedKbps: Float
 )

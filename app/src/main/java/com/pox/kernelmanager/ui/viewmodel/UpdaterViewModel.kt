@@ -10,6 +10,7 @@ import com.pox.kernelmanager.data.model.*
 import com.pox.kernelmanager.data.repo.DownloadsStore
 import com.pox.kernelmanager.data.repo.HardwareRepository
 import com.pox.kernelmanager.data.repo.KernelUpdateRepository
+import com.pox.kernelmanager.data.repo.DownloadProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
