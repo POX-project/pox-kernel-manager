@@ -109,10 +109,18 @@ object ThemeManager {
         backgroundModeState = mode
     }
 
+    fun previewWallpaperScrimAlpha(alpha: Float) {
+        wallpaperScrimAlphaState = alpha.coerceIn(0.10f, 0.95f)
+    }
+
     fun setWallpaperScrimAlpha(alpha: Float) {
         val clamped = alpha.coerceIn(0.10f, 0.95f)
         prefs.edit().putFloat(KEY_SCRIM_ALPHA, clamped).apply()
         wallpaperScrimAlphaState = clamped
+    }
+
+    fun previewWallpaperBlurRadius(radius: Float) {
+        wallpaperBlurRadiusState = radius.coerceIn(0f, 35f)
     }
 
     fun setWallpaperBlurRadius(radius: Float) {

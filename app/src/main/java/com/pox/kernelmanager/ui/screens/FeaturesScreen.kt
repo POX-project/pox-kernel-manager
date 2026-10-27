@@ -690,7 +690,8 @@ fun FeaturesScreenContent(
                 value = uiState.features.chargeLimitPercent.toFloat(),
                 valueRange = 50f..100f,
                 steps = 9,
-                onValueChange = { viewModel.setChargeLimit(it.toInt()) },
+                formatLabel = { "${it.toInt()}%" },
+                onValueConfirmed = { viewModel.setChargeLimit(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.CHARGE_LIMIT)
             )
 
@@ -769,7 +770,15 @@ fun FeaturesScreenContent(
                 value = torchLevel.toFloat(),
                 valueRange = 0f..10f,
                 steps = 9,
-                onValueChange = { viewModel.setTorchBrightness(it.toInt()) },
+                formatLabel = {
+                    val lvl = it.toInt()
+                    when (lvl) {
+                        0 -> "OFF"
+                        10 -> "Level 10 (325mA • Max Overdrive)"
+                        else -> "Level $lvl/10"
+                    }
+                },
+                onValueConfirmed = { viewModel.setTorchBrightness(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.TORCH_BRIGHTNESS)
             )
 
@@ -850,7 +859,8 @@ fun FeaturesScreenContent(
                 value = uiState.features.schedBurstPenaltyScale.toFloat(),
                 valueRange = 0f..4095f,
                 steps = 15,
-                onValueChange = { viewModel.setSchedBurstPenaltyScale(it.toInt()) },
+                formatLabel = { "${it.toInt()}" },
+                onValueConfirmed = { viewModel.setSchedBurstPenaltyScale(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.BORE_SCHEDULER) || uiState.features.rootGranted
             )
 
@@ -861,7 +871,8 @@ fun FeaturesScreenContent(
                 value = uiState.features.schedBurstPenaltyOffset.toFloat(),
                 valueRange = 0f..63f,
                 steps = 14,
-                onValueChange = { viewModel.setSchedBurstPenaltyOffset(it.toInt()) },
+                formatLabel = { "${it.toInt()}" },
+                onValueConfirmed = { viewModel.setSchedBurstPenaltyOffset(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.BORE_SCHEDULER) || uiState.features.rootGranted
             )
 
@@ -953,7 +964,8 @@ fun FeaturesScreenContent(
                 value = uiState.features.vmSwappiness.toFloat(),
                 valueRange = 0f..100f,
                 steps = 19,
-                onValueChange = { viewModel.setVmSwappiness(it.toInt()) },
+                formatLabel = { "${it.toInt()}" },
+                onValueConfirmed = { viewModel.setVmSwappiness(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.VM_SWAPPINESS)
             )
 
@@ -1216,7 +1228,8 @@ fun FeaturesScreenContent(
                 value = uiState.features.headphoneGainDb.toFloat(),
                 valueRange = 0f..8f,
                 steps = 7,
-                onValueChange = { viewModel.setHeadphoneGain(it.toInt()) },
+                formatLabel = { "+${it.toInt()} dB" },
+                onValueConfirmed = { viewModel.setHeadphoneGain(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.HEADPHONE_GAIN)
             )
 
@@ -1227,7 +1240,8 @@ fun FeaturesScreenContent(
                 value = uiState.features.micGainLevel.toFloat(),
                 valueRange = 0f..4f,
                 steps = 3,
-                onValueChange = { viewModel.setMicGain(it.toInt()) },
+                formatLabel = { "Level ${it.toInt()}" },
+                onValueConfirmed = { viewModel.setMicGain(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.MIC_GAIN)
             )
 
@@ -1310,7 +1324,8 @@ fun FeaturesScreenContent(
                 value = uiState.features.vibratorStrengthPercent.toFloat(),
                 valueRange = 0f..100f,
                 steps = 13,
-                onValueChange = { viewModel.setVibratorStrength(it.toInt()) },
+                formatLabel = { "${it.toInt()}%" },
+                onValueConfirmed = { viewModel.setVibratorStrength(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.VIBRATOR_STRENGTH)
             )
 
@@ -1349,7 +1364,8 @@ fun FeaturesScreenContent(
                 value = uiState.features.readAheadKb.toFloat(),
                 valueRange = 64f..512f,
                 steps = 6,
-                onValueChange = { viewModel.setReadAhead(it.toInt()) },
+                formatLabel = { "${it.toInt()} KB" },
+                onValueConfirmed = { viewModel.setReadAhead(it.toInt()) },
                 enabled = uiState.features.isSupported(TuningFeature.READ_AHEAD)
             )
             UnsupportedReason(uiState.features.reasonFor(TuningFeature.READ_AHEAD))

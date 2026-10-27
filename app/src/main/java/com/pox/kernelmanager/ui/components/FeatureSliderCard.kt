@@ -1,9 +1,12 @@
 package com.pox.kernelmanager.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -12,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pox.kernelmanager.ui.theme.PoxCard
+import kotlin.math.roundToInt
 
 @Composable
 fun FeatureSliderCard(
@@ -21,12 +25,45 @@ fun FeatureSliderCard(
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int = 0,
-    onValueChange: (Float) -> Unit,
+    onValueChange: (Float) -> Unit = {},
     onValueChangeFinished: () -> Unit = {},
+    onValueConfirmed: ((Float) -> Unit)? = null,
+    formatLabel: ((Float) -> String)? = null,
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
     val haptic = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isDragged by interactionSource.collectIsDraggedAsState()
+
+    // Decoupled transient slider position ensures buttery smooth 120Hz/60Hz dragging
+    // with zero stutter or state-fighting from asynchronous background kernel I/O.
+    var internalValue by remember(value) { mutableFloatStateOf(value) }
+    var lastHapticStep by remember { mutableIntStateOf(value.roundToInt()) }
+
+    // Synchronize from upstream hardware state only when user is NOT actively dragging
+    LaunchedEffect(value, isDragged) {
+        if (!isDragged) {
+            internalValue = value
+            lastHapticStep = value.roundToInt()
+        }
+    }
+
+    val displayLabel = if (isDragged && formatLabel != null) {
+        formatLabel(internalValue)
+    } else {
+        valueLabel
+    }
+
+    val badgeColor by animateColorAsState(
+        targetValue = if (isDragged) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
+        label = "badgeColor"
+    )
+    val badgeTextColor by animateColorAsState(
+        targetValue = if (isDragged) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+        label = "badgeTextColor"
+    )
+
     PoxCard(
         modifier = modifier
             .fillMaxWidth()
@@ -54,13 +91,13 @@ fun FeatureSliderCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
+                    color = badgeColor
                 ) {
                     Text(
-                        text = valueLabel,
+                        text = displayLabel,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = badgeTextColor,
                         maxLines = 1,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
@@ -73,15 +110,25 @@ fun FeatureSliderCard(
                 modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
             )
             Slider(
-                value = value,
-                onValueChange = onValueChange,
+                value = internalValue,
+                onValueChange = { newVal ->
+                    internalValue = newVal
+                    val currentStep = newVal.roundToInt()
+                    if (currentStep != lastHapticStep) {
+                        lastHapticStep = currentStep
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                    onValueChange(newVal)
+                },
                 onValueChangeFinished = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onValueConfirmed?.invoke(internalValue)
                     onValueChangeFinished()
                 },
                 valueRange = valueRange,
                 steps = steps,
                 enabled = enabled,
+                interactionSource = interactionSource,
                 modifier = Modifier.fillMaxWidth()
             )
         }

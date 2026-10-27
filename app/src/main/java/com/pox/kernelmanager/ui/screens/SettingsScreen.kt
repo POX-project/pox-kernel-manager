@@ -241,7 +241,8 @@ fun SettingsScreen(
                             )
                             Slider(
                                 value = scrimAlpha,
-                                onValueChange = { ThemeManager.setWallpaperScrimAlpha(it) },
+                                onValueChange = { ThemeManager.previewWallpaperScrimAlpha(it) },
+                                onValueChangeFinished = { ThemeManager.setWallpaperScrimAlpha(scrimAlpha) },
                                 valueRange = 0.15f..0.92f,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -280,7 +281,8 @@ fun SettingsScreen(
                             )
                             Slider(
                                 value = blurRadius,
-                                onValueChange = { ThemeManager.setWallpaperBlurRadius(it) },
+                                onValueChange = { ThemeManager.previewWallpaperBlurRadius(it) },
+                                onValueChangeFinished = { ThemeManager.setWallpaperBlurRadius(blurRadius) },
                                 valueRange = 0f..30f,
                                 modifier = Modifier.fillMaxWidth()
                             )
