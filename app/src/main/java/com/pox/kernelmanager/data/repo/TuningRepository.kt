@@ -675,6 +675,38 @@ object TuningRepository {
         )
     }
 
+    suspend fun setBatteryEsr(mohm: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = mohm.coerceIn(20, 1500)
+        prefs.edit().putInt("battery_esr_mohm", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Battery ESR")
+        applyKernelWrites(
+            successLabel = "Battery ESR set to ${clamped}mΩ",
+            KernelNodes.BATTERY_ESR_PROC to clamped.toString(),
+            KernelNodes.BATTERY_ESR_SYS to clamped.toString()
+        )
+    }
+
+    suspend fun setOppSagCeiling(khz: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        prefs.edit().putInt("opp_sag_ceiling", khz).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("OPP Sag Ceiling")
+        applyKernelWrites(
+            successLabel = if (khz > 0) "OPP Sag Ceiling set to ${khz / 1000}MHz" else "OPP Sag Ceiling uncapped",
+            KernelNodes.OPP_SAG_CEILING_PROC to khz.toString(),
+            KernelNodes.OPP_SAG_CEILING_SYS to khz.toString()
+        )
+    }
+
+    suspend fun setThermalGradient(mcPerSec: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = mcPerSec.coerceIn(100, 10000)
+        prefs.edit().putInt("thermal_gradient", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Thermal Gradient")
+        applyKernelWrites(
+            successLabel = "Thermal Gradient set to ${clamped}m°C/s",
+            KernelNodes.THERMAL_GRADIENT_PROC to clamped.toString(),
+            KernelNodes.THERMAL_GRADIENT_SYS to clamped.toString()
+        )
+    }
+
     suspend fun setSchedBore(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
         prefs.edit().putBoolean("sched_bore", enable).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("BORE scheduler")
