@@ -69,6 +69,7 @@ fun TuningScreen(
             )
         },
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        contentWindowInsets = WindowInsets.statusBars,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { paddingValues ->
@@ -169,7 +170,6 @@ private fun EasyModeView(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(bottom = 24.dp)
     ) {
         // Section: Tier Selector (Scrollable horizontally to prevent squishing)
         SectionHeader(
@@ -518,6 +518,7 @@ private fun EasyModeView(
                 }
             }
         }
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -534,7 +535,6 @@ private fun BrainlessModeView(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(bottom = 24.dp)
     ) {
         SectionHeader(
             title = "Brainless Profiles",
@@ -734,6 +734,7 @@ private fun BrainlessModeView(
                 }
             }
         }
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 

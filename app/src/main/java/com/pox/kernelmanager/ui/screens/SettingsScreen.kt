@@ -102,6 +102,7 @@ fun SettingsScreen(
             )
         },
         containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets.statusBars,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { paddingValues ->
@@ -110,7 +111,6 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(scrollState)
-                .padding(bottom = 32.dp)
         ) {
             // Section 1: Appearance & Material 3 Theme
             SectionHeader(
@@ -876,6 +876,7 @@ fun SettingsScreen(
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
