@@ -562,17 +562,21 @@ fun FeaturesScreenContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
+                        val isM20 = com.pox.kernelmanager.data.model.DeviceInfo.isM20Device()
+                        val maxWatt = if (isM20) 15 else 18
+                        val presets = if (isM20) listOf(5, 10, 12, 15) else listOf(5, 10, 12, 15, 18)
+
                         OutlinedTextField(
                             value = wattInputText,
                             onValueChange = { input ->
                                 val filtered = input.filter { it.isDigit() }.take(2)
                                 wattInputText = filtered
                                 val parsed = filtered.toIntOrNull()
-                                if (parsed != null && parsed in 5..18) {
+                                if (parsed != null && parsed in 5..maxWatt) {
                                     viewModel.setChargeWatt(parsed)
                                 }
                             },
-                            label = { Text("Target Wattage (5W - 18W Hardware Max)") },
+                            label = { Text("Target Wattage (5W - ${maxWatt}W Hardware Max)") },
                             suffix = { Text("W") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
@@ -588,7 +592,7 @@ fun FeaturesScreenContent(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            listOf(5, 10, 12, 15, 18).forEach { preset ->
+                            presets.forEach { preset ->
                                 FilterChip(
                                     selected = uiState.features.chargeWatt == preset,
                                     onClick = {

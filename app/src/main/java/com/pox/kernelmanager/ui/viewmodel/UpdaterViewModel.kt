@@ -96,23 +96,24 @@ class UpdaterViewModel : ViewModel() {
                     UpdateCategory.KERNEL -> {
                         when (channel) {
                             ReleaseChannel.STABLE_RELEASES -> {
-                                val releases = KernelUpdateRepository.fetchLatestReleases()
+                                val releases = KernelUpdateRepository.fetchLatestReleases(devInfo.codename)
                                 val latest = releases.firstOrNull()
                                 if (latest != null) {
                                     _latestRelease.value = latest
-                                    val pkgs = KernelUpdateRepository.parsePackagesFromRelease(latest, devInfo.kernelEdition)
+                                    val pkgs = KernelUpdateRepository.parsePackagesFromRelease(latest, devInfo.kernelEdition, devInfo.codename)
                                     _availablePackages.value = pkgs
                                     _selectedPackage.value = pkgs.firstOrNull { it.isRecommendedForDevice } ?: pkgs.firstOrNull()
                                 }
                                 KernelUpdateRepository.parseKernelReleaseItems(
                                     releases,
                                     devInfo.kernelEdition,
-                                    devInfo.kernelRelease
+                                    devInfo.kernelRelease,
+                                    devInfo.codename
                                 )
                             }
                             ReleaseChannel.ACTIONS_BUILDS -> {
-                                val runs = KernelUpdateRepository.fetchKernelActionRuns()
-                                KernelUpdateRepository.parseKernelActionRunItems(runs, devInfo.kernelEdition)
+                                val runs = KernelUpdateRepository.fetchKernelActionRuns(devInfo.codename)
+                                KernelUpdateRepository.parseKernelActionRunItems(runs, devInfo.kernelEdition, devInfo.codename)
                             }
                         }
                     }

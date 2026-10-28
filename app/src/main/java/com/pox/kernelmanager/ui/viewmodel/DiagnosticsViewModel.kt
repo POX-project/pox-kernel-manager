@@ -3,6 +3,7 @@ package com.pox.kernelmanager.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pox.kernelmanager.data.repo.DownloadsStore
+import com.pox.kernelmanager.data.repo.HardwareRepository
 import com.pox.kernelmanager.data.root.KernelNodes
 import com.pox.kernelmanager.data.root.ShellUtils.NodeStatus
 import com.pox.kernelmanager.data.root.ShellUtils
@@ -96,7 +97,8 @@ class DiagnosticsViewModel : ViewModel() {
                     appendLine("==========================================")
                     appendLine("POX KERNEL MANAGER DIAGNOSTIC REPORT 🇵🇸")
                     appendLine("Date: ${Date()}")
-                    appendLine("Device: Redmi Note 8 Pro (begonia / MT6785)")
+                    val devInfo = HardwareRepository.getDeviceInfo()
+                    appendLine("Device: ${devInfo.deviceModel} (${devInfo.codename} / ${devInfo.socName})")
                     appendLine("Uname: $uname")
                     appendLine("SELinux: ${ShellUtils.detectSELinux()}")
                     val rootEnv = ShellUtils.environment()

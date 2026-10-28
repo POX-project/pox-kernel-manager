@@ -351,9 +351,9 @@ fun DashboardScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             DetailRow("Release (UTS_RELEASE)", uiState.deviceInfo.kernelRelease)
-                            DetailRow("Architecture", "ARM64 (aarch64 v8.2-A)")
-                            DetailRow("SoC Platform", "MediaTek Helio G90T (MT6785)")
-                            DetailRow("Device Codename", "begonia / begoniain")
+                            DetailRow("Architecture", if (uiState.deviceInfo.isM20) "ARM64 (aarch64 v8-A)" else "ARM64 (aarch64 v8.2-A)")
+                            DetailRow("SoC Platform", uiState.deviceInfo.socName)
+                            DetailRow("Device Codename", if (uiState.deviceInfo.isM20) "m20lte (Galaxy M20)" else "begonia / begoniain")
                             DetailRow("Variant", uiState.deviceInfo.kernelEdition)
                             DetailRow("Commit", uiState.deviceInfo.commitHash.ifBlank { "unknown" })
                             DetailRow("SELinux Policy", uiState.deviceInfo.selinuxStatus)

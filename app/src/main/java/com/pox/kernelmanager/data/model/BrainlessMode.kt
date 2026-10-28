@@ -81,7 +81,8 @@ data class AdaptedBrainlessConfig(
 
 object BrainlessPresets {
 
-    fun getPreset(profile: BrainlessProfile): BrainlessConfig {
+    fun getPreset(profile: BrainlessProfile, codename: String = "begonia"): BrainlessConfig {
+        val isM20 = DeviceInfo.isM20Device(device = codename)
         return when (profile) {
             BrainlessProfile.BATTERY_BACKUP -> BrainlessConfig(
                 profile = profile,
@@ -95,12 +96,16 @@ object BrainlessPresets {
                 touchSensitivity = 0,
                 fastChargeEnabled = true,
                 chargeWatt = 10,
-                baseOppCeilingKhz = 1664000,
+                baseOppCeilingKhz = if (isM20) 1352000 else 1664000,
                 dynamicFsync = true,
                 wakelockBlocker = true,
                 trueTone = true,
                 healthCalibration = 3, // Longevity mode
-                highlights = listOf("1.66 GHz Eco Ceiling", "10W Gentle Charging", "Max Background Freeze", "Cool Thermals")
+                highlights = if (isM20) {
+                    listOf("1.35 GHz Eco Ceiling", "10W Gentle Charging", "Max Background Freeze", "Cool Thermals")
+                } else {
+                    listOf("1.66 GHz Eco Ceiling", "10W Gentle Charging", "Max Background Freeze", "Cool Thermals")
+                }
             )
             BrainlessProfile.STABILITY -> BrainlessConfig(
                 profile = profile,
@@ -113,13 +118,17 @@ object BrainlessPresets {
                 touchGameMode = false,
                 touchSensitivity = 0,
                 fastChargeEnabled = true,
-                chargeWatt = 18,
-                baseOppCeilingKhz = 2050000,
+                chargeWatt = if (isM20) 15 else 18,
+                baseOppCeilingKhz = if (isM20) 1768000 else 2050000,
                 dynamicFsync = false,
                 wakelockBlocker = true,
                 trueTone = true,
                 healthCalibration = 1, // Auto-Adaptive
-                highlights = listOf("Full 2.05 GHz Boost", "18W Standard Fast Charge", "Smooth 60 FPS", "Zero Crashes")
+                highlights = if (isM20) {
+                    listOf("Full 1.77 GHz Boost", "15W Standard Fast Charge", "Smooth 60 FPS", "Zero Crashes")
+                } else {
+                    listOf("Full 2.05 GHz Boost", "18W Standard Fast Charge", "Smooth 60 FPS", "Zero Crashes")
+                }
             )
             BrainlessProfile.PERFORMANCE -> BrainlessConfig(
                 profile = profile,
@@ -132,45 +141,59 @@ object BrainlessPresets {
                 touchGameMode = true,
                 touchSensitivity = 2,
                 fastChargeEnabled = true,
-                chargeWatt = 18,
-                baseOppCeilingKhz = 2050000,
+                chargeWatt = if (isM20) 15 else 18,
+                baseOppCeilingKhz = if (isM20) 1768000 else 2050000,
                 dynamicFsync = false,
                 wakelockBlocker = false,
                 trueTone = true,
                 healthCalibration = 2, // Perf Guard
-                highlights = listOf("Gaming Mode Boost", "Touch Boost 240Hz", "18W Fast Charge", "Sustained FPS")
+                highlights = if (isM20) {
+                    listOf("Gaming Mode Boost", "Touch Boost Responsive", "15W Fast Charge", "Sustained FPS")
+                } else {
+                    listOf("Gaming Mode Boost", "Touch Boost 240Hz", "18W Fast Charge", "Sustained FPS")
+                }
             )
         }
     }
 
-    fun adaptPreset(base: BrainlessConfig, stats: LearningStats): AdaptedBrainlessConfig {
+    fun adaptPreset(
+        base: BrainlessConfig,
+        stats: LearningStats,
+        codename: String = "begonia"
+    ): AdaptedBrainlessConfig {
         val notes = mutableListOf<String>()
+        val isM20 = DeviceInfo.isM20Device(device = codename)
 
         // 1. Safe Big Cluster OPP Ceiling
         var effectiveOpp = base.baseOppCeilingKhz
-        if (stats.maxSafeOppKhz in 1_100_000 until effectiveOpp) {
+        val oppFloor = if (isM20) 832_000 else 1_100_000
+        if (stats.maxSafeOppKhz in oppFloor until effectiveOpp) {
             val diffMhz = (effectiveOpp - stats.maxSafeOppKhz) / 1000
             effectiveOpp = stats.maxSafeOppKhz
             notes.add("⚡ Big cluster OPP capped to ${effectiveOpp / 1000} MHz (-${diffMhz} MHz) to prevent PMIC UVLO voltage droop")
         }
         if (stats.batteryDegradationFactor < 0.85f && base.profile == BrainlessProfile.BATTERY_BACKUP) {
-            if (effectiveOpp > 1664000) {
-                effectiveOpp = 1664000
-                notes.add("🔋 Big cluster frequency clamped to 1664 MHz efficiency sweet-spot for aged cell")
+            val sweetSpot = if (isM20) 1352000 else 1664000
+            if (effectiveOpp > sweetSpot) {
+                effectiveOpp = sweetSpot
+                notes.add("🔋 Big cluster frequency clamped to ${sweetSpot / 1000} MHz efficiency sweet-spot for aged cell")
             }
         }
 
         // 2. Safe Charging Rate & Joule Heating Prevention
-        var effectiveWatt = base.chargeWatt.coerceIn(5, 18)
+        val maxHardwareWatt = if (isM20) 15 else 18
+        var effectiveWatt = base.chargeWatt.coerceIn(5, maxHardwareWatt)
         if (stats.dcirMohm >= 220 || stats.averageLoadTempC >= 41.0f) {
-            if (effectiveWatt > 15) {
-                val delta = effectiveWatt - 15
-                effectiveWatt = 15
-                notes.add("🌡️ Fast charging tuned to 15W (-${delta}W) to curb Joule heating (DCIR: ${stats.dcirMohm} mΩ, Avg Temp: ${String.format(Locale.US, "%.1f", stats.averageLoadTempC)}°C)")
+            val derate1 = if (isM20) 12 else 15
+            if (effectiveWatt > derate1) {
+                val delta = effectiveWatt - derate1
+                effectiveWatt = derate1
+                notes.add("🌡️ Fast charging tuned to ${derate1}W (-${delta}W) to curb Joule heating (DCIR: ${stats.dcirMohm} mΩ, Avg Temp: ${String.format(Locale.US, "%.1f", stats.averageLoadTempC)}°C)")
             }
-            if (stats.dcirMohm >= 260 && effectiveWatt > 12) {
-                effectiveWatt = 12
-                notes.add("🛡️ Fast charge reduced to 12W to protect high-impedance battery cell")
+            val derate2 = if (isM20) 10 else 12
+            if (stats.dcirMohm >= 260 && effectiveWatt > derate2) {
+                effectiveWatt = derate2
+                notes.add("🛡️ Fast charge reduced to ${derate2}W to protect high-impedance battery cell")
             }
         }
 

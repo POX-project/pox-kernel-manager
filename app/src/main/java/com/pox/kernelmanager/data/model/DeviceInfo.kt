@@ -14,7 +14,28 @@ data class DeviceInfo(
     val rootGranted: Boolean = false,
     val selinuxStatus: String = "Enforcing",
     val noMountActive: Boolean = false
-)
+) {
+    val isM20: Boolean get() = isM20Device(codename)
+    val maxHardwareWatt: Int get() = if (isM20) 15 else 18
+    val nominalBatteryCapacityMah: Int get() = if (isM20) 5000 else 4500
+    val maxBigOppKhz: Int get() = if (isM20) 1768000 else 2050000
+    val primaryKernelRepo: String get() = if (isM20) "txorav/pox-kernel-m20lte" else "POX-project/pox-begonia-kernel"
+    val fallbackKernelRepo: String get() = if (isM20) "txorav/pox-kernel-m20lte" else "txorav/pox-kernel-begonia"
+
+    companion object {
+        fun isM20Device(
+            device: String = "",
+            product: String = "",
+            procVersion: String = ""
+        ): Boolean {
+            val d = device.lowercase()
+            val p = product.lowercase()
+            val v = procVersion.lowercase()
+            return d.contains("m20") || p.contains("m20") ||
+                   v.contains("universal7885") || v.contains("exynos7885") || v.contains("m20lte")
+        }
+    }
+}
 
 /**
  * Root frameworks POX ships against, plus the common community alternatives.

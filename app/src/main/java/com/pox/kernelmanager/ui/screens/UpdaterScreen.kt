@@ -211,7 +211,7 @@ fun UpdaterScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = if (selectedCategory == UpdateCategory.KERNEL) {
-                                "Target: Redmi Note 8 Pro (begonia) • ${deviceInfo.rootProvider.displayName}"
+                                "Target: ${deviceInfo.deviceModel} (${deviceInfo.codename}) • ${deviceInfo.rootProvider.displayName}"
                             } else {
                                 "Repository: POX-project/pox-kernel-manager"
                             },

@@ -242,10 +242,16 @@ object AdaptiveLearningManager {
     }
 
     private fun sampleTelemetry(): Triple<Int, Int, Float> {
-        val vRaw = readSysfs("/sys/class/power_supply/battery/voltage_now")?.toLongOrNull() ?: 4100000L
-        val iRaw = readSysfs("/sys/class/power_supply/battery/current_now")?.toLongOrNull() ?: 350000L
+        val vRaw = readSysfs("/sys/class/power_supply/battery/voltage_now")?.toLongOrNull()
+            ?: readSysfs("/sys/class/power_supply/sec-fuelgauge/voltage_now")?.toLongOrNull()
+            ?: 4100000L
+        val iRaw = readSysfs("/sys/class/power_supply/battery/current_now")?.toLongOrNull()
+            ?: readSysfs("/sys/class/power_supply/sec-fuelgauge/current_now")?.toLongOrNull()
+            ?: 350000L
         val tRaw = readSysfs("/sys/class/thermal/thermal_zone0/temp")?.toIntOrNull()
-            ?: readSysfs("/sys/class/power_supply/battery/temp")?.toIntOrNull() ?: 350
+            ?: readSysfs("/sys/class/power_supply/battery/temp")?.toIntOrNull()
+            ?: readSysfs("/sys/class/power_supply/sec-fuelgauge/temp")?.toIntOrNull()
+            ?: 350
         val vMv = normalizeVoltageMv(vRaw)
         val iMa = normalizeCurrentMa(iRaw)
         val tC = if (tRaw > 1000) tRaw / 1000.0f else tRaw / 10.0f
@@ -383,8 +389,13 @@ object AdaptiveLearningManager {
             // =========================================================================
             // PHASE 2: Stepped OPP Frequency Sag Ladder (6.4s, Progress 22% -> 62%)
             // =========================================================================
-            val oppSteps = listOf(1100000, 1500000, 1784000, 2050000)
-            var safeOppCeiling = 2050000
+            val isM20 = com.pox.kernelmanager.data.model.DeviceInfo.isM20Device()
+            val oppSteps = if (isM20) {
+                listOf(832000, 1144000, 1352000, 1586000, 1768000)
+            } else {
+                listOf(1100000, 1500000, 1784000, 2050000)
+            }
+            var safeOppCeiling = if (isM20) 1768000 else 2050000
             var maxMeasuredSag = deltaV1
 
             for ((stepIdx, freq) in oppSteps.withIndex()) {

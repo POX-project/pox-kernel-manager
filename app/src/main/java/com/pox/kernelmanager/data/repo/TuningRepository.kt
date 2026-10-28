@@ -294,11 +294,12 @@ object TuningRepository {
             } else null
         val fastCharge = (fastChargeRaw != null && fastChargeRaw > 0) || prefs.getBoolean("fast_charge", true)
 
-        val chargeWatt = poxConfig["charge_watt"]?.toIntOrNull() ?: if (isRoot) {
+        val defaultMaxWatt = if (com.pox.kernelmanager.data.model.DeviceInfo.isM20Device()) 15 else 18
+        val chargeWatt = (poxConfig["charge_watt"]?.toIntOrNull() ?: if (isRoot) {
             node(KernelNodes.CHARGE_WATT_PROC)?.toIntOrNull()
                 ?: if (fastChargeRaw != null && fastChargeRaw > 1) fastChargeRaw
-                else prefs.getInt("charge_watt", 18)
-        } else prefs.getInt("charge_watt", 18)
+                else prefs.getInt("charge_watt", defaultMaxWatt)
+        } else prefs.getInt("charge_watt", defaultMaxWatt)).coerceIn(5, defaultMaxWatt)
 
         val pdMinWatt = poxConfig["pd_min_watt"]?.toIntOrNull() ?: if (isRoot) {
             node(KernelNodes.PD_MIN_WATT_PROC)?.toIntOrNull()
@@ -829,7 +830,8 @@ object TuningRepository {
     }
 
     suspend fun setChargeWatt(watt: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        val clamped = watt.coerceIn(5, 18)
+        val maxWatt = if (com.pox.kernelmanager.data.model.DeviceInfo.isM20Device()) 15 else 18
+        val clamped = watt.coerceIn(5, maxWatt)
         prefs.edit().putInt("charge_watt", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Charge Watt")
         val fastChargeOn = prefs.getBoolean("fast_charge", true)
@@ -845,7 +847,8 @@ object TuningRepository {
     }
 
     suspend fun setPdMinWatt(watt: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        val clamped = watt.coerceIn(5, 18)
+        val maxWatt = if (com.pox.kernelmanager.data.model.DeviceInfo.isM20Device()) 15 else 18
+        val clamped = watt.coerceIn(5, maxWatt)
         prefs.edit().putInt("pd_min_watt", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("PD Min Watt")
         applyKernelWrites(
@@ -855,7 +858,8 @@ object TuningRepository {
     }
 
     suspend fun setPdMaxWatt(watt: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        val clamped = watt.coerceIn(5, 18)
+        val maxWatt = if (com.pox.kernelmanager.data.model.DeviceInfo.isM20Device()) 15 else 18
+        val clamped = watt.coerceIn(5, maxWatt)
         prefs.edit().putInt("pd_max_watt", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("PD Max Watt")
         applyKernelWrites(

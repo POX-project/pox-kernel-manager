@@ -847,9 +847,15 @@ fun SettingsScreen(
 
                     HorizontalDivider()
 
-                    SettingInfoRow("Target Device", "Redmi Note 8 Pro (begonia / begoniain)")
-                    SettingInfoRow("SoC", "MediaTek Helio G90T (MT6785)")
-                    SettingInfoRow("Architecture", "ARM64 v8.2-A (2x A76 + 6x A55)")
+                    val isM20 = com.pox.kernelmanager.data.model.DeviceInfo.isM20Device()
+                    val targetDeviceLabel = if (isM20) "Samsung Galaxy M20 (m20lte)" else "Redmi Note 8 Pro (begonia / begoniain)"
+                    val socLabel = if (isM20) "Samsung Exynos 7904 (universal7885)" else "MediaTek Helio G90T (MT6785)"
+                    val archLabel = if (isM20) "ARM64 v8-A (2x A73 + 6x A53)" else "ARM64 v8.2-A (2x A76 + 6x A55)"
+                    val repoUrl = if (isM20) "https://github.com/txorav/pox-kernel-m20lte" else "https://github.com/POX-project/pox-begonia-kernel"
+
+                    SettingInfoRow("Target Device", targetDeviceLabel)
+                    SettingInfoRow("SoC", socLabel)
+                    SettingInfoRow("Architecture", archLabel)
                     SettingInfoRow("Maintainer", "TXO R (Pox Project)")
 
                     Spacer(modifier = Modifier.height(4.dp))
@@ -858,7 +864,7 @@ fun SettingsScreen(
                         onClick = {
                             val intent = Intent(
                                 Intent.ACTION_VIEW,
-                                Uri.parse("https://github.com/POX-project/pox-begonia-kernel")
+                                Uri.parse(repoUrl)
                             )
                             context.startActivity(intent)
                         },

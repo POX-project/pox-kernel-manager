@@ -39,7 +39,14 @@ object KernelUpdateRepository {
 
     const val KERNEL_REPO_PRIMARY = "POX-project/pox-begonia-kernel"
     const val KERNEL_REPO_FALLBACK = "txorav/pox-kernel-begonia"
+    const val KERNEL_REPO_M20 = "txorav/pox-kernel-m20lte"
     const val MANAGER_REPO = "POX-project/pox-kernel-manager"
+
+    fun getKernelRepoPrimary(codename: String = "begonia"): String =
+        if (DeviceInfo.isM20Device(device = codename)) KERNEL_REPO_M20 else KERNEL_REPO_PRIMARY
+
+    fun getKernelRepoFallback(codename: String = "begonia"): String =
+        if (DeviceInfo.isM20Device(device = codename)) KERNEL_REPO_M20 else KERNEL_REPO_FALLBACK
 
     private const val GITHUB_API = "https://api.github.com/repos"
 
@@ -55,11 +62,13 @@ object KernelUpdateRepository {
         }
     }
 
-    suspend fun fetchLatestReleases(): List<GithubRelease> = withContext(Dispatchers.IO) {
+    suspend fun fetchLatestReleases(codename: String = "begonia"): List<GithubRelease> = withContext(Dispatchers.IO) {
+        val primary = getKernelRepoPrimary(codename)
+        val fallback = getKernelRepoFallback(codename)
         val releasesJson = try {
-            fetchUrl("$GITHUB_API/$KERNEL_REPO_PRIMARY/releases")
+            fetchUrl("$GITHUB_API/$primary/releases")
         } catch (_: Exception) {
-            fetchUrl("$GITHUB_API/$KERNEL_REPO_FALLBACK/releases")
+            fetchUrl("$GITHUB_API/$fallback/releases")
         }
         json.decodeFromString<List<GithubRelease>>(releasesJson)
     }
@@ -69,11 +78,13 @@ object KernelUpdateRepository {
         json.decodeFromString<List<GithubRelease>>(releasesJson)
     }
 
-    suspend fun fetchKernelActionRuns(): List<GithubActionRun> = withContext(Dispatchers.IO) {
+    suspend fun fetchKernelActionRuns(codename: String = "begonia"): List<GithubActionRun> = withContext(Dispatchers.IO) {
+        val primary = getKernelRepoPrimary(codename)
+        val fallback = getKernelRepoFallback(codename)
         val runsJson = try {
-            fetchUrl("$GITHUB_API/$KERNEL_REPO_PRIMARY/actions/runs?status=success&per_page=12")
+            fetchUrl("$GITHUB_API/$primary/actions/runs?status=success&per_page=12")
         } catch (_: Exception) {
-            fetchUrl("$GITHUB_API/$KERNEL_REPO_FALLBACK/actions/runs?status=success&per_page=12")
+            fetchUrl("$GITHUB_API/$fallback/actions/runs?status=success&per_page=12")
         }
         val response = json.decodeFromString<GithubRunsResponse>(runsJson)
         response.workflow_runs
@@ -95,10 +106,24 @@ object KernelUpdateRepository {
         }
     }
 
-    fun parsePackagesFromRelease(release: GithubRelease, currentEdition: String): List<KernelPackageItem> {
+    fun filterAssetForDevice(fileName: String, codename: String): Boolean {
+        val isM20 = DeviceInfo.isM20Device(device = codename)
+        return if (isM20) {
+            !fileName.contains("begonia", ignoreCase = true)
+        } else {
+            !fileName.contains("m20", ignoreCase = true)
+        }
+    }
+
+    fun parsePackagesFromRelease(
+        release: GithubRelease,
+        currentEdition: String,
+        codename: String = "begonia"
+    ): List<KernelPackageItem> {
         val items = mutableListOf<KernelPackageItem>()
         for (asset in release.assets) {
             if (!asset.name.endsWith(".zip") || asset.name.contains("latest", true)) continue
+            if (!filterAssetForDevice(asset.name, codename)) continue
 
             val edition = detectEditionName(asset.name)
 
@@ -120,12 +145,14 @@ object KernelUpdateRepository {
     fun parseKernelReleaseItems(
         releases: List<GithubRelease>,
         currentEdition: String,
-        currentRelease: String
+        currentRelease: String,
+        codename: String = "begonia"
     ): List<UpdateItem> {
         val items = mutableListOf<UpdateItem>()
         for (release in releases) {
             for (asset in release.assets) {
                 if (!asset.name.endsWith(".zip") || asset.name.contains("latest", true)) continue
+                if (!filterAssetForDevice(asset.name, codename)) continue
                 val edition = detectEditionName(asset.name)
                 items.add(
                     UpdateItem(
@@ -153,15 +180,18 @@ object KernelUpdateRepository {
 
     suspend fun parseKernelActionRunItems(
         runs: List<GithubActionRun>,
-        currentEdition: String
+        currentEdition: String,
+        codename: String = "begonia"
     ): List<UpdateItem> = withContext(Dispatchers.IO) {
         val items = mutableListOf<UpdateItem>()
+        val repo = getKernelRepoPrimary(codename)
         for (run in runs) {
             val artifacts = fetchRunArtifacts(run.artifacts_url)
             for (art in artifacts) {
                 if (!art.name.endsWith(".zip")) continue
+                if (!filterAssetForDevice(art.name, codename)) continue
                 val edition = detectEditionName(art.name)
-                val downloadUrl = "https://nightly.link/$KERNEL_REPO_PRIMARY/actions/runs/${run.id}/${art.name}"
+                val downloadUrl = "https://nightly.link/$repo/actions/runs/${run.id}/${art.name}"
                 items.add(
                     UpdateItem(
                         id = "run_${run.id}_${art.id}",
