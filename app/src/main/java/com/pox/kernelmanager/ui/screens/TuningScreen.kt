@@ -44,7 +44,14 @@ fun TuningScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var selectedTab by remember { mutableStateOf(TuningModeTab.BRAINLESS) }
+    val initialTab = remember {
+        when (TuningRepository.getActiveTuningMode()) {
+            "EASY" -> TuningModeTab.EASY
+            "ADVANCED" -> TuningModeTab.ADVANCED
+            else -> TuningModeTab.BRAINLESS
+        }
+    }
+    var selectedTab by remember { mutableStateOf(initialTab) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -82,7 +89,13 @@ fun TuningScreen(
                     TuningModeTab.entries.forEachIndexed { index, tab ->
                         SegmentedButton(
                             selected = selectedTab == tab,
-                            onClick = { selectedTab = tab },
+                            onClick = {
+                                selectedTab = tab
+                                TuningRepository.setActiveTuningMode(tab.name)
+                                if (tab == TuningModeTab.ADVANCED) {
+                                    viewModel.refresh()
+                                }
+                            },
                             shape = SegmentedButtonDefaults.itemShape(index = index, count = TuningModeTab.entries.size),
                             icon = {
                                 SegmentedButtonDefaults.Icon(active = selectedTab == tab) {
@@ -116,20 +129,12 @@ fun TuningScreen(
                 when (tab) {
                     TuningModeTab.BRAINLESS -> BrainlessModeView(
                         onApplyProfile = { profile ->
-                            scope.launch {
-                                val result = TuningRepository.applyBrainlessProfile(profile)
-                                snackbarHostState.showSnackbar(result.message)
-                                viewModel.refresh()
-                            }
+                            viewModel.applyBrainlessProfile(profile)
                         }
                     )
                     TuningModeTab.EASY -> EasyModeView(
                         onApplyPreset = { preset ->
-                            scope.launch {
-                                val result = TuningRepository.applyEasyPreset(preset)
-                                snackbarHostState.showSnackbar(result.message)
-                                viewModel.refresh()
-                            }
+                            viewModel.applyEasyPreset(preset)
                         }
                     )
                     TuningModeTab.ADVANCED -> FeaturesScreenContent(viewModel = viewModel)
@@ -156,6 +161,9 @@ private fun EasyModeView(
     val adaptedConfig = remember(selectedTier, selectedProfile, learningStats) {
         EasyModePresets.adaptPreset(currentConfig, learningStats)
     }
+    val isPresetActive = TuningRepository.getActiveTuningMode() == "EASY" &&
+        selectedTier == TuningRepository.getActiveEasyTier() &&
+        selectedProfile == TuningRepository.getActiveEasyProfile()
 
     Column(
         modifier = Modifier
@@ -288,6 +296,20 @@ private fun EasyModeView(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
+                            if (isPresetActive) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.primary
+                                ) {
+                                    Text(
+                                        text = "ACTIVE & BOUND",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                             if (adaptedConfig.isAdapted) {
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
@@ -432,13 +454,17 @@ private fun EasyModeView(
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CheckCircle,
+                        imageVector = if (isPresetActive) Icons.Default.CheckCircle else Icons.Default.Tune,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (adaptedConfig.isAdapted) "Apply Adapted ${selectedTier.title} Preset" else "Apply ${selectedTier.title} Preset",
+                        text = if (isPresetActive) {
+                            if (adaptedConfig.isAdapted) "Re-Bind & Apply Adapted ${selectedTier.title} Preset" else "Re-Bind & Apply ${selectedTier.title} Preset"
+                        } else {
+                            if (adaptedConfig.isAdapted) "Apply & Bind Adapted ${selectedTier.title} Preset" else "Apply & Bind ${selectedTier.title} Preset"
+                        },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -522,7 +548,7 @@ private fun BrainlessModeView(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             BrainlessProfile.entries.forEach { profile ->
-                val isActive = activeProfile == profile
+                val isActive = TuningRepository.getActiveTuningMode() == "BRAINLESS" && activeProfile == profile
                 val baseConfig = remember(profile) { BrainlessPresets.getPreset(profile) }
                 val adaptedConfig = remember(profile, learningStats) {
                     BrainlessPresets.adaptPreset(baseConfig, learningStats)
@@ -584,7 +610,7 @@ private fun BrainlessModeView(
                                             color = MaterialTheme.colorScheme.primary
                                         ) {
                                             Text(
-                                                text = "ACTIVE",
+                                                text = "ACTIVE & BOUND",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.ExtraBold,
                                                 color = MaterialTheme.colorScheme.onPrimary,

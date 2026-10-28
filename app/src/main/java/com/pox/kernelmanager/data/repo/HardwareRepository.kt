@@ -64,34 +64,11 @@ object HardwareRepository {
         val selinux = ShellUtils.detectSELinux()
         val noMount = ShellUtils.detectNoMount()
 
-        val isM20 = DeviceInfo.isM20Device(
-            device = android.os.Build.DEVICE ?: "",
-            product = android.os.Build.PRODUCT ?: "",
-            procVersion = procVersion
-        )
-
-        val deviceModel = if (isM20) {
-            val model = android.os.Build.MODEL ?: ""
-            if (model.isNotBlank()) model else "Samsung Galaxy M20"
-        } else {
-            val model = android.os.Build.MODEL ?: ""
-            if (model.isNotBlank()) model else "Redmi Note 8 Pro"
-        }
-
-        val codename = if (isM20) "m20lte" else (android.os.Build.DEVICE ?: "begonia").lowercase()
-
-        val socName = if (isM20) {
-            "Samsung Exynos 7904 (universal7885)"
-        } else {
-            "MediaTek MT6785 (Helio G90T)"
-        }
-
-        val linuxVersion = if (isM20) {
-            val verMatch = Regex("Linux version ([0-9]+\\.[0-9]+\\.[0-9]+)").find(procVersion)
-            verMatch?.value ?: "Linux 4.4"
-        } else {
-            "Linux 4.14.357"
-        }
+        val model = android.os.Build.MODEL ?: ""
+        val deviceModel = if (model.isNotBlank()) model else "Redmi Note 8 Pro"
+        val codename = (android.os.Build.DEVICE ?: "begonia").lowercase()
+        val socName = "MediaTek MT6785 (Helio G90T)"
+        val linuxVersion = "Linux 4.14.357"
 
         DeviceInfo(
             deviceModel = deviceModel,
@@ -145,23 +122,14 @@ object HardwareRepository {
             batch.putAll(shellBatch)
         }
 
-        val isM20 = DeviceInfo.isM20Device(
-            device = android.os.Build.DEVICE ?: "",
-            product = android.os.Build.PRODUCT ?: ""
-        )
-
-        // 1. CPU Cores stats (Helio G90T Octa-Core: 0-5 Little A55, 6-7 Big A76; Exynos 7904: 0-5 Little A53, 6-7 Big A73)
+        // 1. CPU Cores stats (Helio G90T Octa-Core: 0-5 Little A55, 6-7 Big A76)
         val cores = mutableListOf<CpuCoreStat>()
         for (i in 0 until 8) {
             val freqPath = "/sys/devices/system/cpu/cpu$i/cpufreq/scaling_cur_freq"
-            val fallbackFreq = if (isM20) {
-                if (i >= 6) 1352000 else 1144000
-            } else {
-                if (i >= 6) 1085000 else 1400000
-            }
+            val fallbackFreq = if (i >= 6) 1085000 else 1400000
             val curFreq = (batch[freqPath]?.toIntOrNull() ?: fallbackFreq) / 1000
-            val minFreq = if (isM20) 832 else (if (i >= 6) 800 else 400)
-            val maxFreq = if (isM20) (if (i >= 6) 1768 else 1586) else (if (i >= 6) 2050 else 2000)
+            val minFreq = if (i >= 6) 800 else 400
+            val maxFreq = if (i >= 6) 2050 else 2000
 
             cores.add(
                 CpuCoreStat(
@@ -176,27 +144,17 @@ object HardwareRepository {
 
         val governor = batch["/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"] ?: "schedutil"
 
-        // 2. GPU Frequency & Load (MediaTek Mali-G76 MC4 or Samsung Exynos Mali-G71 MP2)
-        val gpuFreqKhz = if (isM20) {
-            batch["/sys/devices/platform/11400000.mali/clock"]?.trim()?.toLongOrNull()
-                ?: batch["/sys/kernel/gpu/gpu_clock"]?.trim()?.toLongOrNull()
-        } else {
-            batch["/sys/kernel/ged/hal/current_freqency"]
-                ?.trim()?.split(Regex("\\s+"))?.getOrNull(1)?.toLongOrNull()
-        }
+        // 2. GPU Frequency & Load (MediaTek Mali-G76 MC4)
+        val gpuFreqKhz = batch["/sys/kernel/ged/hal/current_freqency"]
+            ?.trim()?.split(Regex("\\s+"))?.getOrNull(1)?.toLongOrNull()
         val gpuFreq = if (gpuFreqKhz != null) {
             (gpuFreqKhz / (if (gpuFreqKhz > 10000) 1000 else 1)).toInt()
         } else {
-            if (isM20) 845 else 800
+            800
         }
 
-        val gpuLoadVal = if (isM20) {
-            batch["/sys/devices/platform/11400000.mali/utilization"]?.trim()?.toIntOrNull()
-                ?: batch["/sys/kernel/gpu/gpu_busy"]?.trim()?.toIntOrNull()
-        } else {
-            batch["/sys/kernel/ged/hal/gpu_utilization"]
-                ?.trim()?.split(Regex("\\s+"))?.firstOrNull()?.toIntOrNull()
-        }
+        val gpuLoadVal = batch["/sys/kernel/ged/hal/gpu_utilization"]
+            ?.trim()?.split(Regex("\\s+"))?.firstOrNull()?.toIntOrNull()
         val gpuLoad = gpuLoadVal?.coerceIn(0, 100) ?: 12
 
         // 3. RAM & ZRAM (from /proc/meminfo)

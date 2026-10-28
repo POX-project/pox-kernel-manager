@@ -267,15 +267,17 @@ fun DashboardScreen(
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                val bigCoreFreq = uiState.stats.cpuCores.getOrNull(6)?.currentFreqMhz ?: 2050
+                val maxBigFreq = 2050
+                val maxLittleFreq = 2000
+                val bigCoreFreq = uiState.stats.cpuCores.getOrNull(6)?.currentFreqMhz ?: maxBigFreq
                 val littleCoreFreq = uiState.stats.cpuCores.getOrNull(0)?.currentFreqMhz ?: 1400
 
                 StatCard(
                     title = "Cortex-A76 (Big)",
                     value = "${bigCoreFreq} MHz",
                     icon = Icons.Default.Speed,
-                    subtitle = "Core 6, 7 • Max 2050 MHz",
-                    progress = bigCoreFreq / 2050f,
+                    subtitle = "Core 6, 7 • Max $maxBigFreq MHz",
+                    progress = (bigCoreFreq / maxBigFreq.toFloat()).coerceIn(0f, 1f),
                     onClick = { activeDetail = DashboardDetailType.CPU_INFO },
                     modifier = Modifier.weight(1f)
                 )
@@ -284,7 +286,7 @@ fun DashboardScreen(
                     value = "${littleCoreFreq} MHz",
                     icon = Icons.Default.Memory,
                     subtitle = "Governor: ${uiState.stats.cpuGovernor}",
-                    progress = littleCoreFreq / 2000f,
+                    progress = (littleCoreFreq / maxLittleFreq.toFloat()).coerceIn(0f, 1f),
                     onClick = { activeDetail = DashboardDetailType.CPU_INFO },
                     modifier = Modifier.weight(1f)
                 )
@@ -351,9 +353,9 @@ fun DashboardScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             DetailRow("Release (UTS_RELEASE)", uiState.deviceInfo.kernelRelease)
-                            DetailRow("Architecture", if (uiState.deviceInfo.isM20) "ARM64 (aarch64 v8-A)" else "ARM64 (aarch64 v8.2-A)")
+                            DetailRow("Architecture", "ARM64 (aarch64 v8.2-A)")
                             DetailRow("SoC Platform", uiState.deviceInfo.socName)
-                            DetailRow("Device Codename", if (uiState.deviceInfo.isM20) "m20lte (Galaxy M20)" else "begonia / begoniain")
+                            DetailRow("Device Codename", "begonia / begoniain")
                             DetailRow("Variant", uiState.deviceInfo.kernelEdition)
                             DetailRow("Commit", uiState.deviceInfo.commitHash.ifBlank { "unknown" })
                             DetailRow("SELinux Policy", uiState.deviceInfo.selinuxStatus)
@@ -395,7 +397,8 @@ fun DashboardScreen(
                             DetailRow("EAS Energy Model", "WALT & C-State Aware Active")
                             DetailRow("OPP Voltage Guard", "Armed • Brownout & Freeze Shield Active")
                             uiState.stats.cpuCores.forEach { core ->
-                                DetailRow("Core ${core.coreId} (${if (core.isBigCore) "Big A76" else "LITTLE A55"})", "${core.currentFreqMhz} MHz (${core.minFreqMhz}-${core.maxFreqMhz} MHz)")
+                                val clusterName = if (core.isBigCore) "Big A76" else "LITTLE A55"
+                                DetailRow("Core ${core.coreId} ($clusterName)", "${core.currentFreqMhz} MHz (${core.minFreqMhz}-${core.maxFreqMhz} MHz)")
                             }
                         }
 

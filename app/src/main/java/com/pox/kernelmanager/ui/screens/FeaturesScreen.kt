@@ -93,6 +93,103 @@ fun FeaturesScreenContent(
                 providerLabel = uiState.features.rootProviderLabel
             )
 
+            // 0. Active Bound Preset Banner
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Bound Mode: ${uiState.boundModeTitle}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                if (uiState.isAdvancedCustomized) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.tertiary
+                                    ) {
+                                        Text(
+                                            text = "CUSTOMIZED",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onTertiary,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                text = if (uiState.isAdvancedCustomized) {
+                                    "Fine-tuned from bound preset. Tap reset to re-bind to mode defaults."
+                                } else {
+                                    "Advanced controls are bound to this active preset. Modifying values below customizes it."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                            )
+                        }
+                    }
+                    if (uiState.isAdvancedCustomized) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            FilledTonalButton(
+                                onClick = { viewModel.resetToBoundModeDefaults() },
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Reset to Mode Defaults",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // 1. Kprofiles & Gaming Governor
             SectionHeader(
                 title = "Kprofiles & Gaming Performance Governor",
@@ -562,9 +659,8 @@ fun FeaturesScreenContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        val isM20 = com.pox.kernelmanager.data.model.DeviceInfo.isM20Device()
-                        val maxWatt = if (isM20) 15 else 18
-                        val presets = if (isM20) listOf(5, 10, 12, 15) else listOf(5, 10, 12, 15, 18)
+                        val maxWatt = 18
+                        val presets = listOf(5, 10, 12, 15, 18)
 
                         OutlinedTextField(
                             value = wattInputText,
@@ -640,11 +736,12 @@ fun FeaturesScreenContent(
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium
                         )
+                        val pdMaxPresets = listOf(10, 12, 15, 18)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            listOf(10, 12, 15, 18).forEach { preset ->
+                            pdMaxPresets.forEach { preset ->
                                 FilterChip(
                                     selected = uiState.features.pdMaxWatt == preset,
                                     onClick = { viewModel.setPdMaxWatt(preset) },
@@ -727,64 +824,64 @@ fun FeaturesScreenContent(
 
             UnsupportedReason(uiState.features.reasonFor(TuningFeature.THERMAL_GUARD))
 
-            // 3. Media & Camera Studio
+            // 3. Media & Camera Studio (begonia-specific MT6785 ISP & PMIC features)
             SectionHeader(
                 title = "Media & Camera Studio",
                 subtitle = "Hardware 4K60 unlock, Sony S-Log3 cinema profile & torch overdrive"
             )
 
-            FeatureSwitchCard(
-                title = "Camera 4K60 FPS Mode",
-                description = "Unlocks 4K 60 frames-per-second recording pipeline (/proc/perfmgr/camera_4k60)",
-                isChecked = uiState.features.camera4k60Enabled,
-                onCheckedChange = { viewModel.toggleCamera4k60(it) },
-                icon = Icons.Default.Videocam,
-                enabled = uiState.features.isSupported(TuningFeature.CAMERA_4K60)
-            )
+                FeatureSwitchCard(
+                    title = "Camera 4K60 FPS Mode",
+                    description = "Unlocks 4K 60 frames-per-second recording pipeline (/proc/perfmgr/camera_4k60)",
+                    isChecked = uiState.features.camera4k60Enabled,
+                    onCheckedChange = { viewModel.toggleCamera4k60(it) },
+                    icon = Icons.Default.Videocam,
+                    enabled = uiState.features.isSupported(TuningFeature.CAMERA_4K60)
+                )
 
-            FeatureSwitchCard(
-                title = "Sony S-Log3 Cinema Flat",
-                description = "Sony cinema logarithmic gamma curve for color grading in DaVinci Resolve (/proc/perfmgr/slog3)",
-                isChecked = uiState.features.slog3Enabled,
-                onCheckedChange = { viewModel.toggleSlog3(it) },
-                icon = Icons.Default.Movie,
-                enabled = uiState.features.isSupported(TuningFeature.CAMERA_SLOG3)
-            )
+                FeatureSwitchCard(
+                    title = "Sony S-Log3 Cinema Flat",
+                    description = "Sony cinema logarithmic gamma curve for color grading in DaVinci Resolve (/proc/perfmgr/slog3)",
+                    isChecked = uiState.features.slog3Enabled,
+                    onCheckedChange = { viewModel.toggleSlog3(it) },
+                    icon = Icons.Default.Movie,
+                    enabled = uiState.features.isSupported(TuningFeature.CAMERA_SLOG3)
+                )
 
-            val torchLevel = uiState.features.torchBrightness.coerceIn(0, 10)
-            val torchLabel = when (torchLevel) {
-                0 -> "Off"
-                1 -> "Level 1 (25mA • Bedside)"
-                2 -> "Level 2 (50mA)"
-                3 -> "Level 3 (75mA)"
-                4 -> "Level 4 (100mA • Stock)"
-                5 -> "Level 5 (137mA)"
-                6 -> "Level 6 (175mA • High)"
-                7 -> "Level 7 (212mA)"
-                8 -> "Level 8 (250mA • Very High)"
-                9 -> "Level 9 (287mA)"
-                10 -> "Level 10 (325mA • Max Overdrive)"
-                else -> "Level $torchLevel/10"
-            }
+                val torchLevel = uiState.features.torchBrightness.coerceIn(0, 10)
+                val torchLabel = when (torchLevel) {
+                    0 -> "Off"
+                    1 -> "Level 1 (25mA • Bedside)"
+                    2 -> "Level 2 (50mA)"
+                    3 -> "Level 3 (75mA)"
+                    4 -> "Level 4 (100mA • Stock)"
+                    5 -> "Level 5 (137mA)"
+                    6 -> "Level 6 (175mA • High)"
+                    7 -> "Level 7 (212mA)"
+                    8 -> "Level 8 (250mA • Very High)"
+                    9 -> "Level 9 (287mA)"
+                    10 -> "Level 10 (325mA • Max Overdrive)"
+                    else -> "Level $torchLevel/10"
+                }
 
-            FeatureSliderCard(
-                title = "BegoTorch Hardware Overdrive",
-                valueLabel = torchLabel,
-                description = "Direct MT6360 PMIC 10-step graded torch current (/proc/perfmgr/torch_brightness clamped at 325mA)",
-                value = torchLevel.toFloat(),
-                valueRange = 0f..10f,
-                steps = 9,
-                formatLabel = {
-                    val lvl = it.toInt()
-                    when (lvl) {
-                        0 -> "OFF"
-                        10 -> "Level 10 (325mA • Max Overdrive)"
-                        else -> "Level $lvl/10"
-                    }
-                },
-                onValueConfirmed = { viewModel.setTorchBrightness(it.toInt()) },
-                enabled = uiState.features.isSupported(TuningFeature.TORCH_BRIGHTNESS)
-            )
+                FeatureSliderCard(
+                    title = "BegoTorch Hardware Overdrive",
+                    valueLabel = torchLabel,
+                    description = "Direct MT6360 PMIC 10-step graded torch current (/proc/perfmgr/torch_brightness clamped at 325mA)",
+                    value = torchLevel.toFloat(),
+                    valueRange = 0f..10f,
+                    steps = 9,
+                    formatLabel = {
+                        val lvl = it.toInt()
+                        when (lvl) {
+                            0 -> "OFF"
+                            10 -> "Level 10 (325mA • Max Overdrive)"
+                            else -> "Level $lvl/10"
+                        }
+                    },
+                    onValueConfirmed = { viewModel.setTorchBrightness(it.toInt()) },
+                    enabled = uiState.features.isSupported(TuningFeature.TORCH_BRIGHTNESS)
+                )
 
             // 4. Network & Tethering
             SectionHeader(
@@ -982,48 +1079,48 @@ fun FeaturesScreenContent(
                 enabled = uiState.features.isSupported(TuningFeature.XSWAPD)
             )
 
-            UnsupportedReason(uiState.features.reasonFor(TuningFeature.XSWAPD))
+                UnsupportedReason(uiState.features.reasonFor(TuningFeature.XSWAPD))
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 5.dp),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                )
-            ) {
-                Row(
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 16.dp, vertical = 5.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    )
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Force Memory Reclaim",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Triggers an immediate 100MB xswapd reclaim pass across all apps",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    FilledTonalButton(
-                        onClick = { viewModel.triggerXswapdReclaim() },
-                        enabled = uiState.features.isSupported(TuningFeature.XSWAPD),
-                        shape = RoundedCornerShape(12.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Reclaim")
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Force Memory Reclaim",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Triggers an immediate 100MB xswapd reclaim pass across all apps",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        FilledTonalButton(
+                            onClick = { viewModel.triggerXswapdReclaim() },
+                            enabled = uiState.features.isSupported(TuningFeature.XSWAPD),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Reclaim")
+                        }
                     }
                 }
-            }
 
             // 7. Display, Touch, Audio & Haptics
             SectionHeader(

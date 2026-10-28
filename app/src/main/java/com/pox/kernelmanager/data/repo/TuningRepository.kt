@@ -101,10 +101,17 @@ object TuningRepository {
         KernelNodes.DRIVEDROID_CDROM_SYS to "usb_cdrom",
     )
 
+    @Volatile
+    private var isApplyingPreset: Boolean = false
+
     private suspend fun applyKernelWrites(
         successLabel: String,
         vararg writes: Pair<String, String>
     ): TuningApplyResult {
+        if (!isApplyingPreset) {
+            markAdvancedCustomized(true)
+        }
+
         // 1. Try unified fast path via PoxConfigBridge
         val configEntries = mutableMapOf<String, String>()
         for ((path, value) in writes) {
@@ -294,7 +301,7 @@ object TuningRepository {
             } else null
         val fastCharge = (fastChargeRaw != null && fastChargeRaw > 0) || prefs.getBoolean("fast_charge", true)
 
-        val defaultMaxWatt = if (com.pox.kernelmanager.data.model.DeviceInfo.isM20Device()) 15 else 18
+        val defaultMaxWatt = 18
         val chargeWatt = (poxConfig["charge_watt"]?.toIntOrNull() ?: if (isRoot) {
             node(KernelNodes.CHARGE_WATT_PROC)?.toIntOrNull()
                 ?: if (fastChargeRaw != null && fastChargeRaw > 1) fastChargeRaw
@@ -830,7 +837,7 @@ object TuningRepository {
     }
 
     suspend fun setChargeWatt(watt: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        val maxWatt = if (com.pox.kernelmanager.data.model.DeviceInfo.isM20Device()) 15 else 18
+        val maxWatt = 18
         val clamped = watt.coerceIn(5, maxWatt)
         prefs.edit().putInt("charge_watt", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Charge Watt")
@@ -847,7 +854,7 @@ object TuningRepository {
     }
 
     suspend fun setPdMinWatt(watt: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        val maxWatt = if (com.pox.kernelmanager.data.model.DeviceInfo.isM20Device()) 15 else 18
+        val maxWatt = 18
         val clamped = watt.coerceIn(5, maxWatt)
         prefs.edit().putInt("pd_min_watt", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("PD Min Watt")
@@ -858,7 +865,7 @@ object TuningRepository {
     }
 
     suspend fun setPdMaxWatt(watt: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        val maxWatt = if (com.pox.kernelmanager.data.model.DeviceInfo.isM20Device()) 15 else 18
+        val maxWatt = 18
         val clamped = watt.coerceIn(5, maxWatt)
         prefs.edit().putInt("pd_max_watt", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("PD Max Watt")
@@ -1372,6 +1379,44 @@ object TuningRepository {
         else TuningApplyResult(cleared.isHardwareApplied, applied.message)
     }
 
+    fun getActiveTuningMode(): String {
+        return prefs.getString("active_tuning_mode", "BRAINLESS") ?: "BRAINLESS"
+    }
+
+    fun setActiveTuningMode(mode: String) {
+        prefs.edit().putString("active_tuning_mode", mode).apply()
+    }
+
+    fun isAdvancedCustomized(): Boolean = prefs.getBoolean("advanced_customized", false)
+
+    fun markAdvancedCustomized(customized: Boolean) {
+        prefs.edit().putBoolean("advanced_customized", customized).apply()
+    }
+
+    fun getActiveBoundPresetTitle(): String {
+        val lastBound = prefs.getString("last_bound_preset", null)
+        if (!lastBound.isNullOrBlank()) return lastBound
+        val mode = getActiveTuningMode()
+        return when (mode) {
+            "BRAINLESS" -> "Brainless • ${getActiveBrainlessProfile().title}"
+            "EASY" -> "Easy Mode • ${getActiveEasyTier().title} (${getActiveEasyProfile().title})"
+            else -> "Brainless • ${getActiveBrainlessProfile().title}"
+        }
+    }
+
+    suspend fun reapplyBoundPreset(): TuningApplyResult {
+        val mode = getActiveTuningMode()
+        return if (mode == "EASY") {
+            val tier = getActiveEasyTier()
+            val profile = getActiveEasyProfile()
+            val preset = EasyModePresets.getPreset(tier, profile)
+            applyEasyPreset(preset)
+        } else {
+            val profile = getActiveBrainlessProfile()
+            applyBrainlessProfile(profile)
+        }
+    }
+
     fun getActiveEasyTier(): EasyModeTier {
         val name = prefs.getString("active_easy_tier", EasyModeTier.NORMAL.name)
         return try {
@@ -1402,121 +1447,136 @@ object TuningRepository {
     suspend fun applyBrainlessProfile(profile: BrainlessProfile): TuningApplyResult = withContext(Dispatchers.IO) {
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Brainless: ${profile.title}")
 
-        AdaptiveLearningManager.syncWithKernelTelemetry()
-        val stats = AdaptiveLearningManager.getStats()
-        val base = BrainlessPresets.getPreset(profile)
-        val adapted = BrainlessPresets.adaptPreset(base, stats)
+        isApplyingPreset = true
+        try {
+            AdaptiveLearningManager.syncWithKernelTelemetry()
+            val stats = AdaptiveLearningManager.getStats()
+            val base = BrainlessPresets.getPreset(profile)
+            val adapted = BrainlessPresets.adaptPreset(base, stats)
 
-        prefs.edit()
-            .putString("active_tuning_mode", "BRAINLESS")
-            .putString("active_brainless_profile", profile.name)
-            .apply()
+            prefs.edit()
+                .putString("active_tuning_mode", "BRAINLESS")
+                .putString("active_brainless_profile", profile.name)
+                .putString("last_bound_preset", "Brainless • ${profile.title}")
+                .putBoolean("advanced_customized", false)
+                .apply()
 
-        val gMode = when (adapted.effectiveGamingMode) {
-            -1 -> GamingModeLevel.POWERSAVE
-            1 -> GamingModeLevel.GAMING
-            2 -> GamingModeLevel.EXTREME
-            else -> GamingModeLevel.BALANCED
+            val gMode = when (adapted.effectiveGamingMode) {
+                -1 -> GamingModeLevel.POWERSAVE
+                1 -> GamingModeLevel.GAMING
+                2 -> GamingModeLevel.EXTREME
+                else -> GamingModeLevel.BALANCED
+            }
+            val kpMode = when (adapted.effectiveKprofileLevel) {
+                1 -> KprofilesLevel.BATTERY
+                2 -> KprofilesLevel.BALANCED
+                3 -> KprofilesLevel.PERFORMANCE
+                else -> KprofilesLevel.BALANCED
+            }
+            val healthMode = when (adapted.effectiveHealthCalibration) {
+                1 -> HealthCalibrationMode.AUTO_ADAPTIVE
+                2 -> HealthCalibrationMode.PERF_GUARD
+                3 -> HealthCalibrationMode.LONGEVITY
+                else -> HealthCalibrationMode.AUTO_ADAPTIVE
+            }
+
+            setGamingMode(gMode)
+            setKprofilesMode(kpMode)
+            setSchedBore(adapted.effectiveSchedBoreEnabled)
+            setSchedBurstPenaltyScale(adapted.effectiveBurstPenaltyScale)
+            setSchedBurstPenaltyOffset(adapted.effectiveBurstPenaltyOffset)
+            setSchedBurstInheritType(adapted.effectiveBurstInheritType)
+            setTouchBoost(adapted.effectiveTouchGameMode)
+            setTouchSensitivity(adapted.effectiveTouchSensitivity)
+            setFastCharge(adapted.effectiveFastChargeEnabled)
+            setChargeWatt(adapted.effectiveChargeWatt)
+            setDynamicFsync(adapted.effectiveDynamicFsync)
+            setWakelockBlocker(adapted.effectiveWakelockBlocker)
+            setTrueTone(adapted.effectiveTrueTone)
+            setHealthCalibrationMode(healthMode)
+
+            // Apply physical silicon calibration limits
+            setBatteryEsr(stats.batteryEsrMohm)
+            setOppSagCeiling(adapted.effectiveOppCeilingKhz)
+            setThermalGradient(stats.thermalRiseRateMcs)
+            setOppVoltageGuard(true)
+
+            val adaptiveSummary = if (adapted.isAdapted) " • Adapted to your battery & silicon" else ""
+            TuningApplyResult(
+                isHardwareApplied = true,
+                message = "Activated & bound ${profile.title}$adaptiveSummary"
+            )
+        } finally {
+            isApplyingPreset = false
         }
-        val kpMode = when (adapted.effectiveKprofileLevel) {
-            1 -> KprofilesLevel.BATTERY
-            2 -> KprofilesLevel.BALANCED
-            3 -> KprofilesLevel.PERFORMANCE
-            else -> KprofilesLevel.BALANCED
-        }
-        val healthMode = when (adapted.effectiveHealthCalibration) {
-            1 -> HealthCalibrationMode.AUTO_ADAPTIVE
-            2 -> HealthCalibrationMode.PERF_GUARD
-            3 -> HealthCalibrationMode.LONGEVITY
-            else -> HealthCalibrationMode.AUTO_ADAPTIVE
-        }
-
-        setGamingMode(gMode)
-        setKprofilesMode(kpMode)
-        setSchedBore(adapted.effectiveSchedBoreEnabled)
-        setSchedBurstPenaltyScale(adapted.effectiveBurstPenaltyScale)
-        setSchedBurstPenaltyOffset(adapted.effectiveBurstPenaltyOffset)
-        setSchedBurstInheritType(adapted.effectiveBurstInheritType)
-        setTouchBoost(adapted.effectiveTouchGameMode)
-        setTouchSensitivity(adapted.effectiveTouchSensitivity)
-        setFastCharge(adapted.effectiveFastChargeEnabled)
-        setChargeWatt(adapted.effectiveChargeWatt)
-        setDynamicFsync(adapted.effectiveDynamicFsync)
-        setWakelockBlocker(adapted.effectiveWakelockBlocker)
-        setTrueTone(adapted.effectiveTrueTone)
-        setHealthCalibrationMode(healthMode)
-
-        // Apply physical silicon calibration limits
-        setBatteryEsr(stats.batteryEsrMohm)
-        setOppSagCeiling(adapted.effectiveOppCeilingKhz)
-        setThermalGradient(stats.thermalRiseRateMcs)
-        setOppVoltageGuard(true)
-
-        val adaptiveSummary = if (adapted.isAdapted) " • Adapted to your battery & silicon" else ""
-        TuningApplyResult(
-            isHardwareApplied = true,
-            message = "Activated ${profile.title}$adaptiveSummary"
-        )
     }
 
     suspend fun applyEasyPreset(config: EasyPresetConfig): TuningApplyResult = withContext(Dispatchers.IO) {
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Preset: ${config.tier.title} - ${config.profile.title}")
 
-        // 1. Sync real-time feedback from kernel
-        AdaptiveLearningManager.syncWithKernelTelemetry()
-        val stats = AdaptiveLearningManager.getStats()
-        val adapted = EasyModePresets.adaptPreset(config, stats)
+        isApplyingPreset = true
+        try {
+            // 1. Sync real-time feedback from kernel
+            AdaptiveLearningManager.syncWithKernelTelemetry()
+            val stats = AdaptiveLearningManager.getStats()
+            val adapted = EasyModePresets.adaptPreset(config, stats)
 
-        prefs.edit()
-            .putString("active_easy_tier", config.tier.name)
-            .putString("active_easy_profile", config.profile.name)
-            .apply()
+            prefs.edit()
+                .putString("active_tuning_mode", "EASY")
+                .putString("active_easy_tier", config.tier.name)
+                .putString("active_easy_profile", config.profile.name)
+                .putString("last_bound_preset", "Easy Mode • ${config.tier.title} (${config.profile.title})")
+                .putBoolean("advanced_customized", false)
+                .apply()
 
-        val gMode = when (adapted.effectiveGamingMode) {
-            -1 -> GamingModeLevel.POWERSAVE
-            1 -> GamingModeLevel.GAMING
-            2 -> GamingModeLevel.EXTREME
-            else -> GamingModeLevel.BALANCED
+            val gMode = when (adapted.effectiveGamingMode) {
+                -1 -> GamingModeLevel.POWERSAVE
+                1 -> GamingModeLevel.GAMING
+                2 -> GamingModeLevel.EXTREME
+                else -> GamingModeLevel.BALANCED
+            }
+            val kpMode = when (adapted.effectiveKprofileLevel) {
+                1 -> KprofilesLevel.BATTERY
+                2 -> KprofilesLevel.BALANCED
+                3 -> KprofilesLevel.PERFORMANCE
+                else -> KprofilesLevel.BALANCED
+            }
+            val healthMode = when (adapted.effectiveHealthCalibration) {
+                1 -> HealthCalibrationMode.AUTO_ADAPTIVE
+                2 -> HealthCalibrationMode.PERF_GUARD
+                3 -> HealthCalibrationMode.LONGEVITY
+                else -> HealthCalibrationMode.AUTO_ADAPTIVE
+            }
+
+            setGamingMode(gMode)
+            setKprofilesMode(kpMode)
+            setSchedBore(adapted.effectiveSchedBoreEnabled)
+            setSchedBurstPenaltyScale(adapted.effectiveBurstPenaltyScale)
+            setSchedBurstPenaltyOffset(adapted.effectiveBurstPenaltyOffset)
+            setSchedBurstInheritType(adapted.effectiveBurstInheritType)
+            setTouchBoost(adapted.effectiveTouchGameMode)
+            setTouchSensitivity(adapted.effectiveTouchSensitivity)
+            setFastCharge(adapted.effectiveFastChargeEnabled)
+            setChargeWatt(adapted.effectiveChargeWatt)
+            setDynamicFsync(adapted.effectiveDynamicFsync)
+            setWakelockBlocker(adapted.effectiveWakelockBlocker)
+            setTrueTone(adapted.effectiveTrueTone)
+            setHealthCalibrationMode(healthMode)
+
+            // Apply physical silicon calibration limits
+            setBatteryEsr(stats.batteryEsrMohm)
+            setOppSagCeiling(adapted.effectiveOppCeilingKhz)
+            setThermalGradient(stats.thermalRiseRateMcs)
+            setOppVoltageGuard(true)
+
+            val adaptiveSummary = if (adapted.isAdapted) " • Adapted to your silicon & battery" else ""
+            TuningApplyResult(
+                isHardwareApplied = true,
+                message = "Applied & bound ${config.tier.title} (${config.profile.title})$adaptiveSummary"
+            )
+        } finally {
+            isApplyingPreset = false
         }
-        val kpMode = when (adapted.effectiveKprofileLevel) {
-            1 -> KprofilesLevel.BATTERY
-            2 -> KprofilesLevel.BALANCED
-            3 -> KprofilesLevel.PERFORMANCE
-            else -> KprofilesLevel.BALANCED
-        }
-        val healthMode = when (adapted.effectiveHealthCalibration) {
-            1 -> HealthCalibrationMode.AUTO_ADAPTIVE
-            2 -> HealthCalibrationMode.PERF_GUARD
-            3 -> HealthCalibrationMode.LONGEVITY
-            else -> HealthCalibrationMode.AUTO_ADAPTIVE
-        }
-
-        setGamingMode(gMode)
-        setKprofilesMode(kpMode)
-        setSchedBore(adapted.effectiveSchedBoreEnabled)
-        setSchedBurstPenaltyScale(adapted.effectiveBurstPenaltyScale)
-        setSchedBurstPenaltyOffset(adapted.effectiveBurstPenaltyOffset)
-        setSchedBurstInheritType(adapted.effectiveBurstInheritType)
-        setTouchBoost(adapted.effectiveTouchGameMode)
-        setTouchSensitivity(adapted.effectiveTouchSensitivity)
-        setFastCharge(adapted.effectiveFastChargeEnabled)
-        setChargeWatt(adapted.effectiveChargeWatt)
-        setDynamicFsync(adapted.effectiveDynamicFsync)
-        setWakelockBlocker(adapted.effectiveWakelockBlocker)
-        setTrueTone(adapted.effectiveTrueTone)
-        setHealthCalibrationMode(healthMode)
-
-        // Apply physical silicon calibration limits
-        setBatteryEsr(stats.batteryEsrMohm)
-        setOppSagCeiling(adapted.effectiveOppCeilingKhz)
-        setThermalGradient(stats.thermalRiseRateMcs)
-        setOppVoltageGuard(true)
-
-        val adaptiveSummary = if (adapted.isAdapted) " • Adapted to your silicon & battery" else ""
-        TuningApplyResult(
-            isHardwareApplied = true,
-            message = "Applied ${config.tier.title} (${config.profile.title})$adaptiveSummary"
-        )
     }
 
     private fun readDirect(path: String): String? {

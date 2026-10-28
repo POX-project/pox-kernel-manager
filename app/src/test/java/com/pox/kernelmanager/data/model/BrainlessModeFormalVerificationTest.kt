@@ -296,27 +296,4 @@ class BrainlessModeFormalVerificationTest {
         assertEquals("After cooldown, full 2.05 GHz boost must be restored", 2050000, s2.effectiveOppCeilingKhz)
         assertFalse("Recovered state must clear adaptation flag", s2.isAdapted)
     }
-
-    @Test
-    fun test_brainless_m20lte_hardware_bounds_and_adaptation() {
-        val m20Stability = BrainlessPresets.getPreset(BrainlessProfile.STABILITY, codename = "m20lte")
-        assertEquals("M20 base wattage must be 15W max", 15, m20Stability.chargeWatt)
-        assertEquals("M20 base OPP must be 1.77 GHz max", 1768000, m20Stability.baseOppCeilingKhz)
-
-        // Derating on high DCIR (225 mΩ) on m20lte: 15W -> 12W
-        val stressStats = LearningStats(dcirMohm = 225, averageLoadTempC = 38.0f, maxSafeOppKhz = 1768000)
-        val adapted1 = BrainlessPresets.adaptPreset(m20Stability, stressStats, codename = "m20lte")
-        assertEquals("M20 15W base must derate to 12W under high DCIR", 12, adapted1.effectiveChargeWatt)
-
-        // Severe DCIR (265 mΩ) on m20lte: 15W -> 10W
-        val severeStats = LearningStats(dcirMohm = 265, averageLoadTempC = 38.0f, maxSafeOppKhz = 1768000)
-        val adapted2 = BrainlessPresets.adaptPreset(m20Stability, severeStats, codename = "m20lte")
-        assertEquals("M20 must derate to 10W under severe DCIR", 10, adapted2.effectiveChargeWatt)
-
-        // Battery wear sweet-spot on M20: 1352 MHz
-        val agedStats = LearningStats(batteryDegradationFactor = 0.82f, dcirMohm = 190, averageLoadTempC = 35.0f, maxSafeOppKhz = 1768000)
-        val m20Battery = BrainlessPresets.getPreset(BrainlessProfile.BATTERY_BACKUP, codename = "m20lte")
-        val adaptedAged = BrainlessPresets.adaptPreset(m20Battery, agedStats, codename = "m20lte")
-        assertEquals("Aged cell on M20 must clamp OPP to 1352 MHz", 1352000, adaptedAged.effectiveOppCeilingKhz)
-    }
 }

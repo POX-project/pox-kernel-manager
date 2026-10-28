@@ -165,35 +165,4 @@ class EasyModePresetsFormalVerificationTest {
             }
         }
     }
-
-    @Test
-    fun test_easymode_m20lte_15_presets_structural_invariants() {
-        val tiers = EasyModeTier.values()
-        val profiles = EasyModeProfile.values()
-
-        var testedPermutations = 0
-        for (tier in tiers) {
-            for (profile in profiles) {
-                val preset = EasyModePresets.getPreset(tier, profile, codename = "m20lte")
-                testedPermutations++
-
-                // Invariant 1: Charge Wattage strictly within Samsung 15W architecture
-                assertTrue("Preset $tier/$profile charge watt ${preset.chargeWatt} must be in [10, 15]",
-                    preset.chargeWatt in 10..15)
-
-                // Invariant 2: Base OPP Ceiling must match valid Exynos 7904 OPP steps
-                assertTrue("Preset $tier/$profile base OPP ${preset.baseOppCeilingKhz} must be valid",
-                    preset.baseOppCeilingKhz in listOf(1144000, 1352000, 1586000, 1768000))
-
-                // Invariant 3: BORE scale in [512, 2048]
-                assertTrue("BORE scale ${preset.burstPenaltyScale} out of bounds",
-                    preset.burstPenaltyScale in 512..2048)
-
-                // Invariant 4: BORE offset in [0, 32]
-                assertTrue("BORE offset ${preset.burstPenaltyOffset} out of bounds",
-                    preset.burstPenaltyOffset in 0..32)
-            }
-        }
-        assertEquals(15, testedPermutations)
-    }
 }

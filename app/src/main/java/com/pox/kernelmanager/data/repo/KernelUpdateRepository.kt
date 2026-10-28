@@ -39,14 +39,11 @@ object KernelUpdateRepository {
 
     const val KERNEL_REPO_PRIMARY = "POX-project/pox-begonia-kernel"
     const val KERNEL_REPO_FALLBACK = "txorav/pox-kernel-begonia"
-    const val KERNEL_REPO_M20 = "txorav/pox-kernel-m20lte"
     const val MANAGER_REPO = "POX-project/pox-kernel-manager"
 
-    fun getKernelRepoPrimary(codename: String = "begonia"): String =
-        if (DeviceInfo.isM20Device(device = codename)) KERNEL_REPO_M20 else KERNEL_REPO_PRIMARY
+    fun getKernelRepoPrimary(codename: String = "begonia"): String = KERNEL_REPO_PRIMARY
 
-    fun getKernelRepoFallback(codename: String = "begonia"): String =
-        if (DeviceInfo.isM20Device(device = codename)) KERNEL_REPO_M20 else KERNEL_REPO_FALLBACK
+    fun getKernelRepoFallback(codename: String = "begonia"): String = KERNEL_REPO_FALLBACK
 
     private const val GITHUB_API = "https://api.github.com/repos"
 
@@ -106,13 +103,8 @@ object KernelUpdateRepository {
         }
     }
 
-    fun filterAssetForDevice(fileName: String, codename: String): Boolean {
-        val isM20 = DeviceInfo.isM20Device(device = codename)
-        return if (isM20) {
-            !fileName.contains("begonia", ignoreCase = true)
-        } else {
-            !fileName.contains("m20", ignoreCase = true)
-        }
+    fun filterAssetForDevice(fileName: String, codename: String = "begonia"): Boolean {
+        return !fileName.contains("m20", ignoreCase = true)
     }
 
     fun parsePackagesFromRelease(

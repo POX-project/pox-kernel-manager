@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+import com.pox.kernelmanager.data.model.BrainlessProfile
+import com.pox.kernelmanager.data.model.EasyPresetConfig
 import com.pox.kernelmanager.data.model.CustomColorProfile
 import com.pox.kernelmanager.data.model.CustomKprofile
 import com.pox.kernelmanager.data.repo.CustomProfilesRepository
@@ -22,6 +24,8 @@ data class FeaturesUiState(
     val features: TuningFeatures = TuningFeatures(),
     val isRootGranted: Boolean = false,
     val isLoading: Boolean = true,
+    val boundModeTitle: String = "Brainless • Stability",
+    val isAdvancedCustomized: Boolean = false,
     val feedbackMessage: String? = null,
     val customColorProfiles: List<CustomColorProfile> = emptyList(),
     val customKprofiles: List<CustomKprofile> = emptyList()
@@ -51,12 +55,61 @@ class FeaturesViewModel : ViewModel() {
             val feat = TuningRepository.getTuningFeatures()
             val colorProfiles = CustomProfilesRepository.getColorProfiles()
             val kprofiles = CustomProfilesRepository.getKprofiles()
+            val boundTitle = TuningRepository.getActiveBoundPresetTitle()
+            val customized = TuningRepository.isAdvancedCustomized()
             _uiState.value = FeaturesUiState(
                 features = feat,
                 isRootGranted = isRoot,
                 isLoading = false,
+                boundModeTitle = boundTitle,
+                isAdvancedCustomized = customized,
                 customColorProfiles = colorProfiles,
                 customKprofiles = kprofiles
+            )
+        }
+    }
+
+    fun applyBrainlessProfile(profile: BrainlessProfile) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            val result = TuningRepository.applyBrainlessProfile(profile)
+            val refreshed = TuningRepository.getTuningFeatures()
+            _uiState.value = _uiState.value.copy(
+                features = refreshed,
+                isLoading = false,
+                boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
+                isAdvancedCustomized = false,
+                feedbackMessage = result.message
+            )
+        }
+    }
+
+    fun applyEasyPreset(config: EasyPresetConfig) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            val result = TuningRepository.applyEasyPreset(config)
+            val refreshed = TuningRepository.getTuningFeatures()
+            _uiState.value = _uiState.value.copy(
+                features = refreshed,
+                isLoading = false,
+                boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
+                isAdvancedCustomized = false,
+                feedbackMessage = result.message
+            )
+        }
+    }
+
+    fun resetToBoundModeDefaults() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            val result = TuningRepository.reapplyBoundPreset()
+            val refreshed = TuningRepository.getTuningFeatures()
+            _uiState.value = _uiState.value.copy(
+                features = refreshed,
+                isLoading = false,
+                boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
+                isAdvancedCustomized = false,
+                feedbackMessage = result.message
             )
         }
     }
@@ -74,6 +127,8 @@ class FeaturesViewModel : ViewModel() {
             val refreshed = TuningRepository.getTuningFeatures()
             _uiState.value = _uiState.value.copy(
                 features = refreshed,
+                boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
+                isAdvancedCustomized = TuningRepository.isAdvancedCustomized(),
                 feedbackMessage = result.message
             )
         }

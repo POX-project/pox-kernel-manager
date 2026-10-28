@@ -5,7 +5,7 @@ data class DeviceInfo(
     val codename: String = "begonia",
     val socName: String = "MediaTek MT6785 (Helio G90T)",
     val kernelRelease: String = "",
-    val linuxVersion: String = "",
+    val linuxVersion: String = "Linux 4.14.357",
     val kernelEdition: String = "",
     val commitHash: String = "",
     val isPoxKernel: Boolean = false,
@@ -15,26 +15,19 @@ data class DeviceInfo(
     val selinuxStatus: String = "Enforcing",
     val noMountActive: Boolean = false
 ) {
-    val isM20: Boolean get() = isM20Device(codename)
-    val maxHardwareWatt: Int get() = if (isM20) 15 else 18
-    val nominalBatteryCapacityMah: Int get() = if (isM20) 5000 else 4500
-    val maxBigOppKhz: Int get() = if (isM20) 1768000 else 2050000
-    val primaryKernelRepo: String get() = if (isM20) "txorav/pox-kernel-m20lte" else "POX-project/pox-begonia-kernel"
-    val fallbackKernelRepo: String get() = if (isM20) "txorav/pox-kernel-m20lte" else "txorav/pox-kernel-begonia"
+    val maxHardwareWatt: Int get() = 18
+    val nominalBatteryCapacityMah: Int get() = 4500
+    val maxBigOppKhz: Int get() = 2050000
+    val primaryKernelRepo: String get() = "POX-project/pox-begonia-kernel"
+    val fallbackKernelRepo: String get() = "txorav/pox-kernel-begonia"
 
-    companion object {
-        fun isM20Device(
-            device: String = "",
-            product: String = "",
-            procVersion: String = ""
-        ): Boolean {
-            val d = device.lowercase()
-            val p = product.lowercase()
-            val v = procVersion.lowercase()
-            return d.contains("m20") || p.contains("m20") ||
-                   v.contains("universal7885") || v.contains("exynos7885") || v.contains("m20lte")
-        }
-    }
+    val cpuArchDesc: String get() = "ARM64 v8.2-A (2x A76 + 6x A55)"
+    val bigClusterName: String get() = "Cortex-A76"
+    val littleClusterName: String get() = "Cortex-A55"
+    val gpuModelName: String get() = "ARM Mali-G76 MC4"
+    val storageTypeName: String get() = "UFS 2.1 Storage"
+    val displayTypeName: String get() = "IPS LCD (Full HD+)"
+    val fastChargeDesc: String get() = "MediaTek Pump Express (18W PE4)"
 }
 
 /**

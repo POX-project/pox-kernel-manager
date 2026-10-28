@@ -389,13 +389,8 @@ object AdaptiveLearningManager {
             // =========================================================================
             // PHASE 2: Stepped OPP Frequency Sag Ladder (6.4s, Progress 22% -> 62%)
             // =========================================================================
-            val isM20 = com.pox.kernelmanager.data.model.DeviceInfo.isM20Device()
-            val oppSteps = if (isM20) {
-                listOf(832000, 1144000, 1352000, 1586000, 1768000)
-            } else {
-                listOf(1100000, 1500000, 1784000, 2050000)
-            }
-            var safeOppCeiling = if (isM20) 1768000 else 2050000
+            val oppSteps = listOf(1100000, 1500000, 1784000, 2050000)
+            var safeOppCeiling = 2050000
             var maxMeasuredSag = deltaV1
 
             for ((stepIdx, freq) in oppSteps.withIndex()) {
