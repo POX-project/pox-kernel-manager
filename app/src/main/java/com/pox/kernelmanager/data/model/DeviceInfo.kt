@@ -1,11 +1,11 @@
 package com.pox.kernelmanager.data.model
 
 data class DeviceInfo(
-    val deviceModel: String = "Redmi Note 8 Pro",
-    val codename: String = "begonia",
-    val socName: String = "MediaTek MT6785 (Helio G90T)",
+    val deviceModel: String = "Samsung Galaxy M20",
+    val codename: String = "m20lte",
+    val socName: String = "Samsung Exynos 7904 (universal7885)",
     val kernelRelease: String = "",
-    val linuxVersion: String = "",
+    val linuxVersion: String = "Linux 4.4",
     val kernelEdition: String = "",
     val commitHash: String = "",
     val isPoxKernel: Boolean = false,
@@ -14,19 +14,24 @@ data class DeviceInfo(
     val rootGranted: Boolean = false,
     val selinuxStatus: String = "Enforcing",
     val noMountActive: Boolean = false
-)
+) {
+    val maxHardwareWatt: Int get() = 15
+    val nominalBatteryCapacityMah: Int get() = 5000
+    val maxBigOppKhz: Int get() = 1768000
+    val primaryKernelRepo: String get() = "txorav/pox-kernel-m20lte"
+    val fallbackKernelRepo: String get() = "txorav/pox-kernel-m20lte"
+
+    val cpuArchDesc: String get() = "ARM64 v8-A (2x A73 + 6x A53)"
+    val bigClusterName: String get() = "Cortex-A73"
+    val littleClusterName: String get() = "Cortex-A53"
+    val gpuModelName: String get() = "ARM Mali-G71 MP2"
+    val storageTypeName: String get() = "eMMC 5.1 Flash"
+    val displayTypeName: String get() = "PLS TFT (Full HD+)"
+    val fastChargeDesc: String get() = "Samsung Adaptive Fast Charging (15W AFC)"
+}
 
 /**
  * Root frameworks POX ships against, plus the common community alternatives.
- *
- * [managerPackages] are the `applicationId`s of each project's official manager APK.
- * They are matched against `pm list packages` and are the only reliable discriminator
- * between KernelSU forks: every fork shares the same on-disk layout (`/data/adb/ksu`,
- * `/data/adb/ksud`) and the same `su` interface, so path probing alone cannot tell
- * BakaSU from SukiSU from upstream KernelSU.
- *
- * Declaration order is detection priority. Keep the more specific forks above the
- * generic ones they would otherwise be swallowed by.
  */
 enum class RootProvider(val displayName: String, val managerPackages: List<String>) {
 
@@ -34,8 +39,6 @@ enum class RootProvider(val displayName: String, val managerPackages: List<Strin
 
     KERNELPATCH("KernelPatch", listOf("me.bmax.kernelpatch")),
 
-    // BakaSU ships applicationId `com.resukisu.resukisu` (its former name, ReSukiSU);
-    // `org.bakasu.bakasu` is only the Gradle namespace and never appears in the APK id.
     BAKASU("BakaSU", listOf("com.resukisu.resukisu", "org.bakasu.bakasu")),
 
     KERNELSU_NEXT("KernelSU-Next", listOf("com.rifsxd.ksunext")),
@@ -52,10 +55,8 @@ enum class RootProvider(val displayName: String, val managerPackages: List<Strin
 
     UNKNOWN("Unknown", emptyList());
 
-    /** True only for frameworks we could positively identify. */
     val isRooted: Boolean get() = this != ROOTLESS && this != UNKNOWN
 
-    /** True for the KernelSU lineage (KernelSU, its forks, and APatch's UI heritage). */
     val isKernelSuFamily: Boolean get() = this in KERNEL_SU_FAMILY
 
     companion object {
@@ -64,7 +65,6 @@ enum class RootProvider(val displayName: String, val managerPackages: List<Strin
             BAKASU, KERNELSU_NEXT, SUKISU_ULTRA, KERNELSU
         )
 
-        /** Every manager package id we know how to identify, for the batched `pm` probe. */
         val MANAGER_PACKAGES: List<String> =
             values().filter { it.managerPackages.isNotEmpty() }.flatMap { it.managerPackages }.distinct()
 

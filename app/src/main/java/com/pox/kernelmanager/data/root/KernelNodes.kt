@@ -99,6 +99,12 @@ object KernelNodes {
     const val OPP_VOLTAGE_GUARD_PROC = "/proc/perfmgr/opp_voltage_guard"
     const val OPP_VOLTAGE_GUARD_SYS = "/sys/kernel/opp_voltage_guard"
     const val HEALTH_STATUS_PROC = "/proc/perfmgr/health_status"
+    const val BATTERY_ESR_PROC = "/proc/perfmgr/battery_esr_mohm"
+    const val BATTERY_ESR_SYS = "/sys/kernel/battery_esr_mohm"
+    const val OPP_SAG_CEILING_PROC = "/proc/perfmgr/opp_sag_ceiling"
+    const val OPP_SAG_CEILING_SYS = "/sys/kernel/opp_sag_ceiling"
+    const val THERMAL_GRADIENT_PROC = "/proc/perfmgr/thermal_gradient"
+    const val THERMAL_GRADIENT_SYS = "/sys/kernel/thermal_gradient"
 
     const val SCHED_BORE_PROC = "/proc/perfmgr/sched_bore"
     const val SCHED_BORE_SYS = "/sys/kernel/sched_bore"

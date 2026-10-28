@@ -62,6 +62,7 @@ fun FeaturesScreen(
             )
         },
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        contentWindowInsets = WindowInsets.statusBars,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { paddingValues ->
@@ -93,10 +94,82 @@ fun FeaturesScreenContent(
                 providerLabel = uiState.features.rootProviderLabel
             )
 
+            // Mandatory Active Mode Banner & Customization Indicator
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Active Mode Binding",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = uiState.boundModeTitle,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (uiState.isAdvancedCustomized) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.tertiaryContainer
+                                    ) {
+                                        Text(
+                                            text = "CUSTOMIZED",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (uiState.isAdvancedCustomized) {
+                        OutlinedButton(
+                            onClick = { viewModel.resetToBoundModeDefaults() },
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Reset", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            }
+
             // 1. Kprofiles & Gaming Governor
             SectionHeader(
                 title = "Kprofiles & Gaming Performance Governor",
-                subtitle = "In-kernel profile modes (/sys/kernel/kprofiles/kp_mode) & MediaTek perfmgr"
+                subtitle = "In-kernel profile modes (/sys/kernel/kprofiles/kp_mode) & Exynos perfmgr"
             )
 
             Card(
@@ -723,65 +796,6 @@ fun FeaturesScreenContent(
 
             UnsupportedReason(uiState.features.reasonFor(TuningFeature.THERMAL_GUARD))
 
-            // 3. Media & Camera Studio
-            SectionHeader(
-                title = "Media & Camera Studio",
-                subtitle = "Hardware 4K60 unlock, Sony S-Log3 cinema profile & torch overdrive"
-            )
-
-            FeatureSwitchCard(
-                title = "Camera 4K60 FPS Mode",
-                description = "Unlocks 4K 60 frames-per-second recording pipeline (/proc/perfmgr/camera_4k60)",
-                isChecked = uiState.features.camera4k60Enabled,
-                onCheckedChange = { viewModel.toggleCamera4k60(it) },
-                icon = Icons.Default.Videocam,
-                enabled = uiState.features.isSupported(TuningFeature.CAMERA_4K60)
-            )
-
-            FeatureSwitchCard(
-                title = "Sony S-Log3 Cinema Flat",
-                description = "Sony cinema logarithmic gamma curve for color grading in DaVinci Resolve (/proc/perfmgr/slog3)",
-                isChecked = uiState.features.slog3Enabled,
-                onCheckedChange = { viewModel.toggleSlog3(it) },
-                icon = Icons.Default.Movie,
-                enabled = uiState.features.isSupported(TuningFeature.CAMERA_SLOG3)
-            )
-
-            val torchLevel = uiState.features.torchBrightness.coerceIn(0, 10)
-            val torchLabel = when (torchLevel) {
-                0 -> "Off"
-                1 -> "Level 1 (25mA • Bedside)"
-                2 -> "Level 2 (50mA)"
-                3 -> "Level 3 (75mA)"
-                4 -> "Level 4 (100mA • Stock)"
-                5 -> "Level 5 (137mA)"
-                6 -> "Level 6 (175mA • High)"
-                7 -> "Level 7 (212mA)"
-                8 -> "Level 8 (250mA • Very High)"
-                9 -> "Level 9 (287mA)"
-                10 -> "Level 10 (325mA • Max Overdrive)"
-                else -> "Level $torchLevel/10"
-            }
-
-            FeatureSliderCard(
-                title = "BegoTorch Hardware Overdrive",
-                valueLabel = torchLabel,
-                description = "Direct MT6360 PMIC 10-step graded torch current (/proc/perfmgr/torch_brightness clamped at 325mA)",
-                value = torchLevel.toFloat(),
-                valueRange = 0f..10f,
-                steps = 9,
-                formatLabel = {
-                    val lvl = it.toInt()
-                    when (lvl) {
-                        0 -> "OFF"
-                        10 -> "Level 10 (325mA • Max Overdrive)"
-                        else -> "Level $lvl/10"
-                    }
-                },
-                onValueConfirmed = { viewModel.setTorchBrightness(it.toInt()) },
-                enabled = uiState.features.isSupported(TuningFeature.TORCH_BRIGHTNESS)
-            )
-
             // 4. Network & Tethering
             SectionHeader(
                 title = "Network & Tethering",
@@ -950,76 +964,6 @@ fun FeaturesScreenContent(
                 icon = Icons.Default.PowerSettingsNew,
                 enabled = uiState.features.isSupported(TuningFeature.SCHED_CSTATE_AWARE)
             )
-
-            // 6. Memory & HyperOS xswapd Subsystem
-            SectionHeader(
-                title = "Memory Management & xswapd",
-                subtitle = "VM swappiness, asynchronous per-memcg page swap & compressor"
-            )
-
-            FeatureSliderCard(
-                title = "VM Swappiness",
-                valueLabel = "${uiState.features.vmSwappiness}",
-                description = "Aggressiveness of kernel page swapping to zRAM (/proc/sys/vm/swappiness)",
-                value = uiState.features.vmSwappiness.toFloat(),
-                valueRange = 0f..100f,
-                steps = 19,
-                formatLabel = { "${it.toInt()}" },
-                onValueConfirmed = { viewModel.setVmSwappiness(it.toInt()) },
-                enabled = uiState.features.isSupported(TuningFeature.VM_SWAPPINESS)
-            )
-
-            FeatureSwitchCard(
-                title = "xswapd Background Engine",
-                description = "Offloads memory swap compression to unbound kernel workers, preventing binder stalls and launcher redraws",
-                isChecked = uiState.features.xswapdEnabled,
-                onCheckedChange = { viewModel.toggleXswapd(it) },
-                icon = Icons.Default.Compress,
-                enabled = uiState.features.isSupported(TuningFeature.XSWAPD)
-            )
-
-            UnsupportedReason(uiState.features.reasonFor(TuningFeature.XSWAPD))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 5.dp),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Force Memory Reclaim",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Triggers an immediate 100MB xswapd reclaim pass across all apps",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    FilledTonalButton(
-                        onClick = { viewModel.triggerXswapdReclaim() },
-                        enabled = uiState.features.isSupported(TuningFeature.XSWAPD),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Reclaim")
-                    }
-                }
-            }
 
             // 7. Display, Touch, Audio & Haptics
             SectionHeader(
@@ -1447,7 +1391,7 @@ fun FeaturesScreenContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
         if (showCreateKprofileDialog) {

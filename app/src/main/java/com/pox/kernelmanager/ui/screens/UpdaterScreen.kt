@@ -71,13 +71,14 @@ fun UpdaterScreen(
             )
         },
         containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets.statusBars,
         modifier = modifier
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(bottom = 32.dp)
+            contentPadding = PaddingValues(bottom = 16.dp)
         ) {
             // 1. Category Switcher (Kernel vs Pox Manager App)
             item {

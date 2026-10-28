@@ -7,7 +7,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
@@ -87,28 +90,35 @@ fun MainContent() {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             val isWallpaper = com.pox.kernelmanager.ui.theme.ThemeManager.backgroundModeState != com.pox.kernelmanager.ui.theme.BackgroundMode.PURE_SURFACE
-            NavigationBar(
-                containerColor = if (isWallpaper) {
-                    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.92f)
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainer
-                },
-                tonalElevation = 3.dp
-            ) {
-                navItems.forEachIndexed { index, item ->
-                    NavigationBarItem(
-                        selected = selectedIndex == index,
-                        onClick = {
-                            selectedIndex = index
-                            if (index != 2) {
-                                settingsSubScreen = SettingsSubScreen.MAIN
-                            }
-                        },
-                        icon = { Icon(imageVector = item.icon, contentDescription = item.title) },
-                        label = { Text(item.title) }
-                    )
+            Column {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f),
+                    thickness = 0.5.dp
+                )
+                NavigationBar(
+                    containerColor = if (isWallpaper) {
+                        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.92f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainer
+                    },
+                    tonalElevation = 0.dp
+                ) {
+                    navItems.forEachIndexed { index, item ->
+                        NavigationBarItem(
+                            selected = selectedIndex == index,
+                            onClick = {
+                                selectedIndex = index
+                                if (index != 2) {
+                                    settingsSubScreen = SettingsSubScreen.MAIN
+                                }
+                            },
+                            icon = { Icon(imageVector = item.icon, contentDescription = item.title) },
+                            label = { Text(item.title) }
+                        )
+                    }
                 }
             }
         }

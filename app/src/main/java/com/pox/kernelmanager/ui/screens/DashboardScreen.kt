@@ -72,6 +72,7 @@ fun DashboardScreen(
             )
         },
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        contentWindowInsets = WindowInsets.statusBars,
         modifier = modifier
     ) { paddingValues ->
         Column(
@@ -325,7 +326,7 @@ fun DashboardScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
         // Advanced Modal BottomSheet for Kernel & Hardware Details

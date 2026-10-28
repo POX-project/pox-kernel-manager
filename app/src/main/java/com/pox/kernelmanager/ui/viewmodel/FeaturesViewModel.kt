@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+import com.pox.kernelmanager.data.model.BrainlessProfile
+import com.pox.kernelmanager.data.model.EasyPresetConfig
 import com.pox.kernelmanager.data.model.CustomColorProfile
 import com.pox.kernelmanager.data.model.CustomKprofile
 import com.pox.kernelmanager.data.repo.CustomProfilesRepository
@@ -22,6 +24,8 @@ data class FeaturesUiState(
     val features: TuningFeatures = TuningFeatures(),
     val isRootGranted: Boolean = false,
     val isLoading: Boolean = true,
+    val boundModeTitle: String = "Brainless • Stability",
+    val isAdvancedCustomized: Boolean = false,
     val feedbackMessage: String? = null,
     val customColorProfiles: List<CustomColorProfile> = emptyList(),
     val customKprofiles: List<CustomKprofile> = emptyList()
@@ -51,12 +55,61 @@ class FeaturesViewModel : ViewModel() {
             val feat = TuningRepository.getTuningFeatures()
             val colorProfiles = CustomProfilesRepository.getColorProfiles()
             val kprofiles = CustomProfilesRepository.getKprofiles()
+            val boundTitle = TuningRepository.getActiveBoundPresetTitle()
+            val customized = TuningRepository.isAdvancedCustomized()
             _uiState.value = FeaturesUiState(
                 features = feat,
                 isRootGranted = isRoot,
                 isLoading = false,
+                boundModeTitle = boundTitle,
+                isAdvancedCustomized = customized,
                 customColorProfiles = colorProfiles,
                 customKprofiles = kprofiles
+            )
+        }
+    }
+
+    fun applyBrainlessProfile(profile: BrainlessProfile) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            val result = TuningRepository.applyBrainlessProfile(profile)
+            val refreshed = TuningRepository.getTuningFeatures()
+            _uiState.value = _uiState.value.copy(
+                features = refreshed,
+                isLoading = false,
+                boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
+                isAdvancedCustomized = false,
+                feedbackMessage = result.message
+            )
+        }
+    }
+
+    fun applyEasyPreset(config: EasyPresetConfig) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            val result = TuningRepository.applyEasyPreset(config)
+            val refreshed = TuningRepository.getTuningFeatures()
+            _uiState.value = _uiState.value.copy(
+                features = refreshed,
+                isLoading = false,
+                boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
+                isAdvancedCustomized = false,
+                feedbackMessage = result.message
+            )
+        }
+    }
+
+    fun resetToBoundModeDefaults() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            val result = TuningRepository.reapplyBoundPreset()
+            val refreshed = TuningRepository.getTuningFeatures()
+            _uiState.value = _uiState.value.copy(
+                features = refreshed,
+                isLoading = false,
+                boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
+                isAdvancedCustomized = false,
+                feedbackMessage = result.message
             )
         }
     }
@@ -140,10 +193,6 @@ fun setZramSizeMb(sizeMb: Long) = apply { TuningRepository.setZramSizeMb(sizeMb)
 
     fun toggleWakelockBlocker(enable: Boolean) = apply { TuningRepository.setWakelockBlocker(enable) }
 
-    fun toggleXswapd(enable: Boolean) = apply { TuningRepository.setXswapdEnabled(enable) }
-
-    fun triggerXswapdReclaim() = apply { TuningRepository.triggerXswapdReclaim() }
-
     fun toggleDt2w(enable: Boolean) = apply { TuningRepository.setDoubleTapToWake(enable) }
 
     fun toggleTrueTone(enable: Boolean) = apply { TuningRepository.setTrueTone(enable) }
@@ -155,12 +204,6 @@ fun setZramSizeMb(sizeMb: Long) = apply { TuningRepository.setZramSizeMb(sizeMb)
     fun toggleDriveDroidCdrom(enable: Boolean) = apply { TuningRepository.setDriveDroidCdrom(enable) }
 
     fun setReadAhead(kb: Int) = apply { TuningRepository.setReadAheadKb(kb) }
-
-    fun toggleCamera4k60(enable: Boolean) = apply { TuningRepository.setCamera4k60(enable) }
-
-    fun toggleSlog3(enable: Boolean) = apply { TuningRepository.setSlog3(enable) }
-
-    fun setTorchBrightness(level: Int) = apply { TuningRepository.setTorchBrightness(level) }
 
     fun setTcpCongestion(algorithm: String) = apply { TuningRepository.setTcpCongestion(algorithm) }
 

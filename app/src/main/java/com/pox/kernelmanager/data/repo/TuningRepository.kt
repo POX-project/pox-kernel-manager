@@ -9,6 +9,10 @@ import com.pox.kernelmanager.data.model.HealthCalibrationMode
 import com.pox.kernelmanager.data.model.EasyModeTier
 import com.pox.kernelmanager.data.model.EasyModeProfile
 import com.pox.kernelmanager.data.model.EasyPresetConfig
+import com.pox.kernelmanager.data.model.BrainlessPresets
+import com.pox.kernelmanager.data.model.BrainlessProfile
+import com.pox.kernelmanager.data.model.BrainlessConfig
+import com.pox.kernelmanager.data.learning.AdaptiveLearningManager
 import com.pox.kernelmanager.data.model.EasyModePresets
 import com.pox.kernelmanager.data.model.TuningFeature
 import com.pox.kernelmanager.data.model.TuningFeatures
@@ -675,6 +679,38 @@ object TuningRepository {
         )
     }
 
+    suspend fun setBatteryEsr(mohm: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = mohm.coerceIn(20, 1500)
+        prefs.edit().putInt("battery_esr_mohm", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Battery ESR")
+        applyKernelWrites(
+            successLabel = "Battery ESR set to ${clamped}mΩ",
+            KernelNodes.BATTERY_ESR_PROC to clamped.toString(),
+            KernelNodes.BATTERY_ESR_SYS to clamped.toString()
+        )
+    }
+
+    suspend fun setOppSagCeiling(khz: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        prefs.edit().putInt("opp_sag_ceiling", khz).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("OPP Sag Ceiling")
+        applyKernelWrites(
+            successLabel = if (khz > 0) "OPP Sag Ceiling set to ${khz / 1000}MHz" else "OPP Sag Ceiling uncapped",
+            KernelNodes.OPP_SAG_CEILING_PROC to khz.toString(),
+            KernelNodes.OPP_SAG_CEILING_SYS to khz.toString()
+        )
+    }
+
+    suspend fun setThermalGradient(mcPerSec: Int): TuningApplyResult = withContext(Dispatchers.IO) {
+        val clamped = mcPerSec.coerceIn(100, 10000)
+        prefs.edit().putInt("thermal_gradient", clamped).apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Thermal Gradient")
+        applyKernelWrites(
+            successLabel = "Thermal Gradient set to ${clamped}m°C/s",
+            KernelNodes.THERMAL_GRADIENT_PROC to clamped.toString(),
+            KernelNodes.THERMAL_GRADIENT_SYS to clamped.toString()
+        )
+    }
+
     suspend fun setSchedBore(enable: Boolean): TuningApplyResult = withContext(Dispatchers.IO) {
         prefs.edit().putBoolean("sched_bore", enable).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("BORE scheduler")
@@ -794,7 +830,7 @@ object TuningRepository {
     }
 
     suspend fun setChargeWatt(watt: Int): TuningApplyResult = withContext(Dispatchers.IO) {
-        val clamped = watt.coerceIn(5, 120)
+        val clamped = watt.coerceIn(5, 15)
         prefs.edit().putInt("charge_watt", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Charge Watt")
         val fastChargeOn = prefs.getBoolean("fast_charge", true)
@@ -1333,6 +1369,110 @@ object TuningRepository {
         else TuningApplyResult(cleared.isHardwareApplied, applied.message)
     }
 
+
+    fun getActiveTuningMode(): String {
+        return prefs.getString("active_tuning_mode", "BRAINLESS") ?: "BRAINLESS"
+    }
+
+    fun setActiveTuningMode(mode: String) {
+        prefs.edit().putString("active_tuning_mode", mode).apply()
+    }
+
+    fun isAdvancedCustomized(): Boolean {
+        return prefs.getBoolean("advanced_customized", false)
+    }
+
+    fun markAdvancedCustomized() {
+        prefs.edit().putBoolean("advanced_customized", true).apply()
+    }
+
+    fun getActiveBoundPresetTitle(): String {
+        return when (getActiveTuningMode()) {
+            "BRAINLESS" -> "Brainless: ${getActiveBrainlessProfile().title}"
+            "EASY" -> "Easy Mode: ${getActiveEasyTier().title} (${getActiveEasyProfile().title})"
+            else -> prefs.getString("last_bound_preset", "Brainless: Stability") ?: "Brainless: Stability"
+        }
+    }
+
+    fun getActiveBrainlessProfile(): BrainlessProfile {
+        val name = prefs.getString("active_brainless_profile", BrainlessProfile.STABILITY.name)
+        return try {
+            BrainlessProfile.valueOf(name ?: BrainlessProfile.STABILITY.name)
+        } catch (_: Exception) {
+            BrainlessProfile.STABILITY
+        }
+    }
+
+    suspend fun applyBrainlessProfile(profile: BrainlessProfile): TuningApplyResult = withContext(Dispatchers.IO) {
+        val baseConfig = BrainlessPresets.getPreset(profile)
+        val learningStats = AdaptiveLearningManager.getStats()
+        val config = BrainlessPresets.adaptPreset(baseConfig, learningStats)
+
+        prefs.edit()
+            .putString("active_tuning_mode", "BRAINLESS")
+            .putString("active_brainless_profile", profile.name)
+            .putString("last_bound_preset", "Brainless: ${profile.title}")
+            .putBoolean("advanced_customized", false)
+            .apply()
+
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Brainless: ${profile.title}")
+
+        val gMode = when (config.effectiveGamingMode) {
+            -1 -> GamingModeLevel.POWERSAVE
+            1 -> GamingModeLevel.GAMING
+            2 -> GamingModeLevel.EXTREME
+            else -> GamingModeLevel.BALANCED
+        }
+        val kpMode = when (config.effectiveKprofileLevel) {
+            1 -> KprofilesLevel.BATTERY
+            2 -> KprofilesLevel.BALANCED
+            3 -> KprofilesLevel.PERFORMANCE
+            else -> KprofilesLevel.BALANCED
+        }
+        val healthMode = when (config.effectiveHealthCalibration) {
+            1 -> HealthCalibrationMode.AUTO_ADAPTIVE
+            2 -> HealthCalibrationMode.PERF_GUARD
+            3 -> HealthCalibrationMode.LONGEVITY
+            else -> HealthCalibrationMode.AUTO_ADAPTIVE
+        }
+
+        setGamingMode(gMode)
+        setKprofilesMode(kpMode)
+        setSchedBore(config.effectiveSchedBoreEnabled)
+        setSchedBurstPenaltyScale(config.effectiveBurstPenaltyScale)
+        setSchedBurstPenaltyOffset(config.effectiveBurstPenaltyOffset)
+        setSchedBurstInheritType(config.effectiveBurstInheritType)
+        setTouchBoost(config.effectiveTouchGameMode)
+        setTouchSensitivity(config.effectiveTouchSensitivity)
+        setFastCharge(config.effectiveFastChargeEnabled)
+        setChargeWatt(config.effectiveChargeWatt)
+        setDynamicFsync(config.effectiveDynamicFsync)
+        setWakelockBlocker(config.effectiveWakelockBlocker)
+        setTrueTone(config.effectiveTrueTone)
+        setHealthCalibrationMode(healthMode)
+
+        setBatteryEsr(learningStats.batteryEsrMohm)
+        setOppSagCeiling(config.effectiveOppCeilingKhz)
+        setThermalGradient(learningStats.thermalRiseRateMcs)
+        setOppVoltageGuard(true)
+
+        TuningApplyResult(
+            isHardwareApplied = true,
+            message = "Bound to ${profile.title} Profile (${config.base.highlights.firstOrNull() ?: ""})"
+        )
+    }
+
+    suspend fun reapplyBoundPreset(): TuningApplyResult {
+        return when (getActiveTuningMode()) {
+            "BRAINLESS" -> applyBrainlessProfile(getActiveBrainlessProfile())
+            "EASY" -> {
+                val base = EasyModePresets.getPreset(getActiveEasyTier(), getActiveEasyProfile())
+                applyEasyPreset(base)
+            }
+            else -> applyBrainlessProfile(getActiveBrainlessProfile())
+        }
+    }
+
     fun getActiveEasyTier(): EasyModeTier {
         val name = prefs.getString("active_easy_tier", EasyModeTier.NORMAL.name)
         return try {
@@ -1352,25 +1492,31 @@ object TuningRepository {
     }
 
     suspend fun applyEasyPreset(config: EasyPresetConfig): TuningApplyResult = withContext(Dispatchers.IO) {
-        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Preset: ${config.tier.title} - ${config.profile.title}")
+        val stats = AdaptiveLearningManager.getStats()
+        val adapted = EasyModePresets.adaptPreset(config, stats)
+
         prefs.edit()
+            .putString("active_tuning_mode", "EASY")
             .putString("active_easy_tier", config.tier.name)
             .putString("active_easy_profile", config.profile.name)
+            .putString("last_bound_preset", "Easy Mode • ${config.tier.title} (${config.profile.title})")
+            .putBoolean("advanced_customized", false)
             .apply()
+        if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Preset: ${config.tier.title} - ${config.profile.title}")
 
-        val gMode = when (config.gamingMode) {
+        val gMode = when (adapted.effectiveGamingMode) {
             -1 -> GamingModeLevel.POWERSAVE
             1 -> GamingModeLevel.GAMING
             2 -> GamingModeLevel.EXTREME
             else -> GamingModeLevel.BALANCED
         }
-        val kpMode = when (config.kprofileLevel) {
+        val kpMode = when (adapted.effectiveKprofileLevel) {
             1 -> KprofilesLevel.BATTERY
             2 -> KprofilesLevel.BALANCED
             3 -> KprofilesLevel.PERFORMANCE
             else -> KprofilesLevel.BALANCED
         }
-        val healthMode = when (config.healthCalibration) {
+        val healthMode = when (adapted.effectiveHealthCalibration) {
             1 -> HealthCalibrationMode.AUTO_ADAPTIVE
             2 -> HealthCalibrationMode.PERF_GUARD
             3 -> HealthCalibrationMode.LONGEVITY
@@ -1379,18 +1525,23 @@ object TuningRepository {
 
         setGamingMode(gMode)
         setKprofilesMode(kpMode)
-        setSchedBore(config.schedBoreEnabled)
-        setSchedBurstPenaltyScale(config.burstPenaltyScale)
-        setSchedBurstPenaltyOffset(config.burstPenaltyOffset)
-        setSchedBurstInheritType(config.burstInheritType)
-        setTouchBoost(config.touchGameMode)
-        setTouchSensitivity(config.touchSensitivity)
-        setFastCharge(config.fastChargeEnabled)
-        setChargeWatt(config.chargeWatt)
-        setDynamicFsync(config.dynamicFsync)
-        setWakelockBlocker(config.wakelockBlocker)
-        setTrueTone(config.trueTone)
+        setSchedBore(adapted.effectiveSchedBoreEnabled)
+        setSchedBurstPenaltyScale(adapted.effectiveBurstPenaltyScale)
+        setSchedBurstPenaltyOffset(adapted.effectiveBurstPenaltyOffset)
+        setSchedBurstInheritType(adapted.effectiveBurstInheritType)
+        setTouchBoost(adapted.effectiveTouchGameMode)
+        setTouchSensitivity(adapted.effectiveTouchSensitivity)
+        setFastCharge(adapted.effectiveFastChargeEnabled)
+        setChargeWatt(adapted.effectiveChargeWatt)
+        setDynamicFsync(adapted.effectiveDynamicFsync)
+        setWakelockBlocker(adapted.effectiveWakelockBlocker)
+        setTrueTone(adapted.effectiveTrueTone)
         setHealthCalibrationMode(healthMode)
+
+        setBatteryEsr(stats.batteryEsrMohm)
+        setOppSagCeiling(adapted.effectiveOppCeilingKhz)
+        setThermalGradient(stats.thermalRiseRateMcs)
+        setOppVoltageGuard(true)
 
         TuningApplyResult(
             isHardwareApplied = true,

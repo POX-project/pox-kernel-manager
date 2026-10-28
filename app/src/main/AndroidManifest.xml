@@ -48,17 +48,6 @@
         </service>
 
         <service
-            android:name=".service.BegoTorchTileService"
-            android:exported="true"
-            android:icon="@drawable/ic_qs_torch"
-            android:label="@string/tile_begotorch"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
-
-        <service
             android:name=".service.PoxModeTileService"
             android:exported="true"
             android:icon="@drawable/ic_qs_mode"
