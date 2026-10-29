@@ -886,16 +886,82 @@ object TuningRepository {
         )
     }
 
+    /**
+     * Authoritative charge-limit read.
+     *
+     * Prefer the dedicated nodes over `pox_config`: a kernel can expose
+     * `pox_config` without mapping every key, so the proc snapshot is only a
+     * fallback when the nodes are unreadable (e.g. root is not ready yet).
+     */
+    private suspend fun readChargeLimitPercent(): Int? =
+        ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_PROC)?.trim()?.toIntOrNull()
+            ?: ShellUtils.fastRead(KernelNodes.BATTERY_LIMIT_SYS)?.trim()?.toIntOrNull()
+            ?: PoxConfigBridge.readConfig(forceRefresh = true)["battery_limit"]?.toIntOrNull()
+
+    /**
+     * Write the charge cap and prove it landed.
+     *
+     * `pox_config` accepts the whole batch even when a key is unknown, so a
+     * successful write there is not proof that the kernel applied it. Read the
+     * cap back and fall through to the dedicated `battery_limit` nodes when the
+     * unified path was a no-op.
+     */
+    private suspend fun writeChargeLimitValue(percent: Int): Boolean {
+        val poxPath = PoxConfigBridge.isSupported() &&
+            PoxConfigBridge.writeBatch(mapOf("battery_limit" to percent.toString()))
+        if (poxPath && readChargeLimitPercent() == percent) return true
+
+        val wrote = listOf(
+            KernelNodes.BATTERY_LIMIT_PROC,
+            KernelNodes.BATTERY_LIMIT_SYS
+        ).any { ShellUtils.fastWrite(it, percent.toString()) }
+        if (!wrote) return false
+        // If the node cannot be read back, trust the successful write; the proc
+        // handler returns an error for rejected values.
+        return readChargeLimitPercent()?.let { it == percent } ?: true
+    }
+
     suspend fun setChargeLimit(percent: Int): TuningApplyResult = withContext(Dispatchers.IO) {
         val clamped = percent.coerceIn(50, 100)
         prefs.edit().putInt("charge_limit", clamped).apply()
         if (!ShellUtils.isRootAvailable()) return@withContext notApplied("Charge limit")
         if (!isSupported(TuningFeature.CHARGE_LIMIT)) return@withContext unsupported(TuningFeature.CHARGE_LIMIT)
-        applyKernelWrites(
-            successLabel = "Charging stop limit set to $clamped%",
-            KernelNodes.BATTERY_LIMIT_PROC to clamped.toString(),
-            KernelNodes.BATTERY_LIMIT_SYS to clamped.toString()
-        )
+        if (!isApplyingPreset) markAdvancedCustomized(true)
+        if (writeChargeLimitValue(clamped)) {
+            TuningApplyResult(true, "Charging stop limit set to $clamped%")
+        } else {
+            TuningApplyResult(false, "Kernel rejected the charge-limit write - battery_limit is not writable")
+        }
+    }
+
+    /**
+     * Restore the saved stop limit after a reboot.
+     *
+     * `pox-begonia-kernel` keeps `g_battery_charge_limit` in RAM and its
+     * `init.battery_guard.rc` writes `100` on every boot, so the user's cap is
+     * lost unless the app writes it back once the node is available.
+     *
+     * @param force `true` on boot (always restore the saved cap); `false` on a
+     *   normal app start, where only an obvious reset to `100` is repaired so a
+     *   value set by another tool is not overwritten.
+     * @return `true` when there is nothing to do or the cap is in place;
+     *   `false` when root or the node is not ready yet and the caller should
+     *   retry.
+     */
+    suspend fun restoreChargeLimitFromPrefs(force: Boolean = false): Boolean = withContext(Dispatchers.IO) {
+        val saved = prefs.getInt("charge_limit", 100).coerceIn(50, 100)
+        // 100 is "no cap"; the kernel boot default already matches it.
+        if (saved >= 100) return@withContext true
+        if (!ShellUtils.isRootAvailable()) return@withContext false
+
+        KernelNodes.invalidate()
+        if (!isSupported(TuningFeature.CHARGE_LIMIT)) return@withContext true
+
+        val current = readChargeLimitPercent()
+        if (current == saved) return@withContext true
+        if (!force && current != null && current != 100) return@withContext true
+
+        writeChargeLimitValue(saved)
     }
 
     suspend fun setThermalGuard(enable: Boolean, tempLimit: Int): TuningApplyResult = withContext(Dispatchers.IO) {

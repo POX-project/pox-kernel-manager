@@ -1,6 +1,7 @@
 package com.pox.kernelmanager
 
 import android.app.Application
+import com.pox.kernelmanager.data.repo.TuningRepository
 import com.pox.kernelmanager.data.root.ShellUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +28,9 @@ class PoxApplication : Application() {
         // the first dashboard read does not pay for the su prompt.
         appScope.launch {
             ShellUtils.prewarm()
+            // The kernel keeps the charge cap in RAM and resets it to 100 on
+            // boot; repair it here when the boot receiver could not run.
+            runCatching { TuningRepository.restoreChargeLimitFromPrefs() }
         }
     }
 
