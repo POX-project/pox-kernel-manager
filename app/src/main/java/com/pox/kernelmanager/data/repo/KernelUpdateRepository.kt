@@ -39,8 +39,8 @@ object KernelUpdateRepository {
 
     const val KERNEL_REPO_PRIMARY = "POX-project/pox-begonia-kernel"
     const val KERNEL_REPO_FALLBACK = "txorav/pox-kernel-begonia"
-    const val KERNEL_REPO_M20LTE = "txorav/pox-kernel-m20lte"
-    const val MANAGER_REPO = "txorav/pox-kernel-manager-m20lte"
+    const val KERNEL_REPO_M20LTE = "POX-project/pox-m20lte-kernel"
+    const val MANAGER_REPO = "POX-project/pox-kernel-manager"
 
     private const val GITHUB_API = "https://api.github.com/repos"
 

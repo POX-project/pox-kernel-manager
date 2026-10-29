@@ -653,7 +653,7 @@ fun SettingsScreen(
                         onClick = {
                             val intent = Intent(
                                 Intent.ACTION_VIEW,
-                                Uri.parse("https://github.com/txorav/pox-kernel-m20lte")
+                                Uri.parse("https://github.com/POX-project/pox-m20lte-kernel")
                             )
                             context.startActivity(intent)
                         },
