@@ -265,8 +265,8 @@ object AdaptiveLearningManager {
             var bitMask = 0x5555555555555555L
             while (active.get()) {
                 for (i in 0 until 4000) {
-                    x = Math.fma(x, y, 1.000000001)
-                    y = Math.fma(y, 1.000000002, x * 0.000000001)
+                    x = (x * y) + 1.000000001
+                    y = (y * 1.000000002) + (x * 0.000000001)
                     bitMask = (bitMask shl 1) xor (bitMask ushr 1) xor 0x123456789ABCDEFL
                 }
                 if (x > 1e9) x = 1.00001
