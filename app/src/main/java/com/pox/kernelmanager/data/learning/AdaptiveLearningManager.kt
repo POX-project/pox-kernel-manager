@@ -17,6 +17,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -258,19 +259,40 @@ object AdaptiveLearningManager {
         return Triple(vMv, iMa, tC)
     }
 
-    private class StressWorker(private val active: AtomicBoolean) : Runnable {
+    /**
+     * CPU stress worker used by the calibration protocol.
+     *
+     * This runs on a plain [Thread]. An uncaught throwable on such a thread
+     * terminates the whole process, so every failure is captured and reported
+     * back to [runCalibration] instead of escaping [run].
+     *
+     * The arithmetic must stay within APIs available on minSdk 26. In
+     * particular `java.lang.Math.fma` is Android 13 (API 33) only and throws
+     * `NoSuchMethodError` on older devices, so plain IEEE-754 multiply/add
+     * operations are used here.
+     */
+    private class StressWorker(
+        private val active: AtomicBoolean,
+        private val failure: AtomicReference<Throwable?>
+    ) : Runnable {
         override fun run() {
-            var x = 1.00001
-            var y = 1.00002
-            var bitMask = 0x5555555555555555L
-            while (active.get()) {
-                for (i in 0 until 4000) {
-                    x = (x * y) + 1.000000001
-                    y = (y * 1.000000002) + (x * 0.000000001)
-                    bitMask = (bitMask shl 1) xor (bitMask ushr 1) xor 0x123456789ABCDEFL
+            try {
+                var x = 1.00001
+                var y = 1.00002
+                var bitMask = 0x5555555555555555L
+                while (active.get()) {
+                    for (i in 0 until 4000) {
+                        x = (x * y) + 1.000000001
+                        y = (y * 1.000000002) + (x * 0.000000001)
+                        bitMask = (bitMask shl 1) xor (bitMask ushr 1) xor 0x123456789ABCDEFL
+                    }
+                    if (x > 1e9) x = 1.00001
+                    if (y > 1e9) y = 1.00002
                 }
-                if (x > 1e9) x = 1.00001
-                if (y > 1e9) y = 1.00002
+            } catch (t: Throwable) {
+                // Keep the first failure and ask the other workers to stop.
+                failure.compareAndSet(null, t)
+                active.set(false)
             }
         }
     }
@@ -294,15 +316,19 @@ object AdaptiveLearningManager {
         }
 
         val stressActive = AtomicBoolean(false)
+        val stressFailure = AtomicReference<Throwable?>(null)
         val threadCount = Runtime.getRuntime().availableProcessors().coerceIn(4, 8)
         val threads = mutableListOf<Thread>()
 
         fun startStress() {
+            stressFailure.set(null)
             stressActive.set(true)
             threads.clear()
             for (i in 0 until threadCount) {
-                val t = Thread(StressWorker(stressActive), "PoxCalibWorker-$i")
+                val t = Thread(StressWorker(stressActive, stressFailure), "PoxCalibWorker-$i")
                 t.priority = Thread.MAX_PRIORITY
+                // A stuck worker must never keep a dead calibration alive.
+                t.isDaemon = true
                 threads.add(t)
                 t.start()
             }
@@ -314,6 +340,18 @@ object AdaptiveLearningManager {
                 t.interrupt()
             }
             threads.clear()
+        }
+
+        // Surface a worker failure as a normal exception so the caller can show
+        // an error dialog. Never let it escape the worker thread (that would
+        // kill the process, as the original Math.fma NoSuchMethodError did).
+        fun ensureStressHealthy() {
+            val cause = stressFailure.get() ?: return
+            val message = cause.message ?: cause.javaClass.simpleName
+            throw IllegalStateException(
+                "Calibration aborted: CPU stress worker failed ($message)",
+                cause
+            )
         }
 
         try {
@@ -362,6 +400,7 @@ object AdaptiveLearningManager {
 
             for (i in 0 until 10) {
                 val (v, cur, t) = sampleTelemetry()
+                ensureStressHealthy()
                 pulseVoltages.add(v)
                 pulseCurrents.add(cur)
                 pulseTemp = t
@@ -401,6 +440,7 @@ object AdaptiveLearningManager {
 
                 for (s in 0 until 16) {
                     val (v, cur, t) = sampleTelemetry()
+                    ensureStressHealthy()
                     stepMinV = min(stepMinV, v)
                     stepMaxI = max(stepMaxI, cur)
                     stepT = t
@@ -445,6 +485,7 @@ object AdaptiveLearningManager {
 
             for (i in 0 until 50) {
                 val (v, cur, t) = sampleTelemetry()
+                ensureStressHealthy()
                 finalLoadV = v
                 finalLoadI = cur
                 val nowOffsetSec = (System.currentTimeMillis() - startTimeMs) / 1000.0
