@@ -47,6 +47,9 @@ jobs:
           yes | "$sdkmanager_bin" --licenses > /dev/null 2>&1 || true
           "$sdkmanager_bin" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
+      - name: Unit tests
+        run: ./gradlew --no-daemon :app:testDebugUnitTest --stacktrace
+
       - name: Assemble
         run: ./gradlew --no-daemon :app:assembleDebug --stacktrace
 
