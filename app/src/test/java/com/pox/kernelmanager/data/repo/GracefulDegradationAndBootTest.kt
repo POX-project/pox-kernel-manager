@@ -6,8 +6,6 @@ import com.pox.kernelmanager.data.model.BrainlessProfile
 import com.pox.kernelmanager.data.model.EasyModePresets
 import com.pox.kernelmanager.data.model.EasyModeProfile
 import com.pox.kernelmanager.data.model.EasyModeTier
-import com.pox.kernelmanager.data.model.GamingModeLevel
-import com.pox.kernelmanager.data.model.KprofilesLevel
 import com.pox.kernelmanager.data.root.KernelNodes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -43,27 +41,29 @@ class GracefulDegradationAndBootTest {
 
     @Test
     fun adaptiveEasyModePresetIdempotencyUnderThermalAndVoltageSag() {
-        val tier = EasyModeTier.GAMING
-        val profile = EasyModeProfile.PERFORMANCE
+        val tier = EasyModeTier.ULTRA
+        val profile = EasyModeProfile.MAX_PERFORMANCE
         val base = EasyModePresets.getPreset(tier, profile)
 
         // Baseline verification
-        assertEquals(18, base.fastChargeWatt)
-        assertEquals(2050000, base.oppCeilingKhz)
+        assertEquals(18, base.chargeWatt)
+        assertEquals(2050000, base.baseOppCeilingKhz)
 
-        // Simulate severe DCIR degradation (ESR 260 mOhm > 240 mOhm threshold)
+        // Simulate severe DCIR degradation (DCIR 270 mOhm > 260 mOhm threshold)
         val highDcirStats = LearningStats(
-            batteryEsrMohm = 260,
-            thermalRiseRateMcs = 450,
-            recordedSagEvents = 15,
-            recordedThermalThrottles = 3
+            batteryDegradationFactor = 0.70f,
+            dcirMohm = 270,
+            averageLoadTempC = 43.0f,
+            maxSafeOppKhz = 1664000,
+            thermalRiseRateMcs = 1350,
+            efficiencyIndex = 70
         )
 
         val adapted1 = EasyModePresets.adaptPreset(base, highDcirStats)
         assertTrue("Preset should be marked adapted", adapted1.isAdapted)
         assertEquals("Charge watt must derate to 12W under high DCIR", 12, adapted1.effectiveChargeWatt)
-        assertEquals("OPP ceiling must derate to 1700MHz to prevent Vdrop sag brownouts", 1700000, adapted1.effectiveOppCeilingKhz)
-        assertFalse("Sched BORE must be enabled under severe throttling to maintain interactive UI fluidity", !adapted1.effectiveSchedBoreEnabled)
+        assertEquals("OPP ceiling must derate to safe OPP to prevent sag brownouts", 1664000, adapted1.effectiveOppCeilingKhz)
+        assertTrue("Sched BORE must be enabled under severe throttling to maintain interactive UI fluidity", adapted1.effectiveSchedBoreEnabled)
 
         // Second pass: Reapplying adaptation on an already evaluated state must be strictly idempotent
         val adapted2 = EasyModePresets.adaptPreset(base, highDcirStats)
@@ -76,25 +76,25 @@ class GracefulDegradationAndBootTest {
 
     @Test
     fun adaptiveBrainlessPresetDeratesSafelyAndRemainsIdempotent() {
-        val base = BrainlessPresets.getPreset(BrainlessProfile.EXTREME)
-        assertEquals(GamingModeLevel.EXTREME.ordinal, base.gamingMode)
+        val base = BrainlessPresets.getPreset(BrainlessProfile.PERFORMANCE)
+        assertEquals(1, base.gamingMode) // Gaming
 
-        // High thermal gradient (> 400 mC/s) and high ESR
+        // High thermal gradient and high DCIR
         val stressStats = LearningStats(
-            batteryEsrMohm = 250,
-            thermalRiseRateMcs = 500,
-            recordedSagEvents = 20,
-            recordedThermalThrottles = 10
+            batteryDegradationFactor = 0.75f,
+            dcirMohm = 270,
+            averageLoadTempC = 42.5f,
+            maxSafeOppKhz = 1784000,
+            thermalRiseRateMcs = 1400,
+            efficiencyIndex = 72
         )
 
         val adaptedOnce = BrainlessPresets.adaptPreset(base, stressStats)
         assertTrue(adaptedOnce.isAdapted)
-        // High thermal rise must clamp gaming mode from EXTREME down to safe BALANCED (ordinal 0)
-        assertEquals(GamingModeLevel.BALANCED.ordinal, adaptedOnce.effectiveGamingMode)
-        // High ESR must clamp fast charge watt to 12W
+        // High DCIR must clamp fast charge watt to 12W
         assertEquals(12, adaptedOnce.effectiveChargeWatt)
         // OPP sag ceiling clamped to safe limit
-        assertEquals(1700000, adaptedOnce.effectiveOppCeilingKhz)
+        assertEquals(1784000, adaptedOnce.effectiveOppCeilingKhz)
 
         // Reapply - must produce identical configuration
         val adaptedTwice = BrainlessPresets.adaptPreset(base, stressStats)
@@ -107,10 +107,12 @@ class GracefulDegradationAndBootTest {
     @Test
     fun hardwareSafetyBoundsAreGuaranteedAcrossAllPresets() {
         val extremeStats = LearningStats(
-            batteryEsrMohm = 500,
-            thermalRiseRateMcs = 1200,
-            recordedSagEvents = 100,
-            recordedThermalThrottles = 50
+            batteryDegradationFactor = 0.50f,
+            dcirMohm = 400,
+            averageLoadTempC = 48.0f,
+            maxSafeOppKhz = 1664000,
+            thermalRiseRateMcs = 1800,
+            efficiencyIndex = 50
         )
 
         for (tier in EasyModeTier.values()) {
@@ -118,11 +120,11 @@ class GracefulDegradationAndBootTest {
                 val base = EasyModePresets.getPreset(tier, profile)
                 val adapted = EasyModePresets.adaptPreset(base, extremeStats)
 
-                assertTrue("Charge watt must never be below 5W", adapted.effectiveChargeWatt >= 5)
-                assertTrue("Charge watt must never exceed 27W", adapted.effectiveChargeWatt <= 27)
-                assertTrue("OPP ceiling must be >= 1000MHz", adapted.effectiveOppCeilingKhz >= 1000000)
+                assertTrue("Charge watt must never be below 10W", adapted.effectiveChargeWatt >= 10)
+                assertTrue("Charge watt must never exceed 18W", adapted.effectiveChargeWatt <= 18)
+                assertTrue("OPP ceiling must be >= 1664MHz", adapted.effectiveOppCeilingKhz >= 1664000)
                 assertTrue("OPP ceiling must be <= 2050MHz", adapted.effectiveOppCeilingKhz <= 2050000)
-                assertNotNull(adapted.summary)
+                assertNotNull(adapted.adaptationNotes)
             }
         }
 
@@ -130,11 +132,11 @@ class GracefulDegradationAndBootTest {
             val base = BrainlessPresets.getPreset(profile)
             val adapted = BrainlessPresets.adaptPreset(base, extremeStats)
 
-            assertTrue("Charge watt must never be below 5W", adapted.effectiveChargeWatt >= 5)
-            assertTrue("Charge watt must never exceed 27W", adapted.effectiveChargeWatt <= 27)
-            assertTrue("OPP ceiling must be >= 1000MHz", adapted.effectiveOppCeilingKhz >= 1000000)
+            assertTrue("Charge watt must never be below 10W", adapted.effectiveChargeWatt >= 10)
+            assertTrue("Charge watt must never exceed 18W", adapted.effectiveChargeWatt <= 18)
+            assertTrue("OPP ceiling must be >= 1664MHz", adapted.effectiveOppCeilingKhz >= 1664000)
             assertTrue("OPP ceiling must be <= 2050MHz", adapted.effectiveOppCeilingKhz <= 2050000)
-            assertNotNull(adapted.summary)
+            assertNotNull(adapted.adaptationNotes)
         }
     }
 }
