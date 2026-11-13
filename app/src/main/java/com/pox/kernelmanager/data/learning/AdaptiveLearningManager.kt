@@ -74,13 +74,13 @@ object AdaptiveLearningManager {
     }
 
     fun init(context: Context) {
-        syncWithKernelTelemetry()
-        // Boot-time hardware profile restoration
-        val esr = prefs.getInt(KEY_BATTERY_ESR, 0)
-        val oppCap = prefs.getInt(KEY_MAX_SAFE_OPP, 0)
-        val gradient = prefs.getInt(KEY_THERMAL_RISE, 0)
-        if (esr > 0 || oppCap > 0 || gradient > 0) {
-            CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO).launch {
+            syncWithKernelTelemetry()
+            // Boot-time hardware profile restoration
+            val esr = prefs.getInt(KEY_BATTERY_ESR, 0)
+            val oppCap = prefs.getInt(KEY_MAX_SAFE_OPP, 0)
+            val gradient = prefs.getInt(KEY_THERMAL_RISE, 0)
+            if (esr > 0 || oppCap > 0 || gradient > 0) {
                 if (esr > 0) TuningRepository.setBatteryEsr(esr)
                 if (oppCap > 0) TuningRepository.setOppSagCeiling(oppCap)
                 if (gradient > 0) TuningRepository.setThermalGradient(gradient)

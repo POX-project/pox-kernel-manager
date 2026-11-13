@@ -538,7 +538,7 @@ fun rootKnownGranted(): Boolean = cached?.environment?.granted == true
 suspend fun nodeExists(path: String): Boolean = withContext(Dispatchers.IO) {
     if (!isRootAvailable()) return@withContext false
     try {
-        Shell.cmd("test -w ${shellQuote(path)}").exec().isSuccess
+        Shell.cmd("test -e ${shellQuote(path)}").exec().isSuccess
     } catch (_: Exception) {
         false
     }
