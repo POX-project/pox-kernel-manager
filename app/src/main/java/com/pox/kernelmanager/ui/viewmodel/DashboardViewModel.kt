@@ -13,6 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -62,16 +63,18 @@ class DashboardViewModel : ViewModel() {
 
     fun refresh() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.update { it.copy(isLoading = true) }
             val info = HardwareRepository.getDeviceInfo()
             val stats = HardwareRepository.getHardwareStats()
-            _uiState.value = _uiState.value.copy(
-                deviceInfo = info,
-                stats = stats,
-                isLoading = false,
-                // Whether *this app* holds root, not whether some framework is installed.
-                isRootGranted = info.rootGranted
-            )
+            _uiState.update {
+                it.copy(
+                    deviceInfo = info,
+                    stats = stats,
+                    isLoading = false,
+                    // Whether *this app* holds root, not whether some framework is installed.
+                    isRootGranted = info.rootGranted
+                )
+            }
         }
     }
 
@@ -82,7 +85,7 @@ class DashboardViewModel : ViewModel() {
                 delay(3000)
                 try {
                     val stats = HardwareRepository.getHardwareStats()
-                    _uiState.value = _uiState.value.copy(stats = stats)
+                    _uiState.update { it.copy(stats = stats) }
                 } catch (_: Exception) { }
             }
         }
