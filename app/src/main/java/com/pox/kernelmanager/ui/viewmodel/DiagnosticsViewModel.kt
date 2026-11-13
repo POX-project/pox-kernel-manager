@@ -10,6 +10,7 @@ import com.pox.kernelmanager.data.root.ShellUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -59,13 +60,15 @@ class DiagnosticsViewModel : ViewModel() {
             val profile = if (root) {
                 ShellUtils.fastRead(KernelNodes.PROFILE_PROC)?.trim().orEmpty()
             } else ""
-            _uiState.value = DiagnosticsUiState(
-                dmesgLogs = dmesg,
-                selinuxMode = selinux,
-                isRootGranted = root,
-                nodeReport = report,
-                hardwareProfile = profile
-            )
+            _uiState.update {
+                it.copy(
+                    dmesgLogs = dmesg,
+                    selinuxMode = selinux,
+                    isRootGranted = root,
+                    nodeReport = report,
+                    hardwareProfile = profile
+                )
+            }
         }
     }
 
@@ -75,16 +78,18 @@ class DiagnosticsViewModel : ViewModel() {
             val target = if (current.equals("Enforcing", true)) "0" else "1"
             ShellUtils.runCommand("setenforce $target")
             val updated = ShellUtils.detectSELinux()
-            _uiState.value = _uiState.value.copy(
-                selinuxMode = updated,
-                exportMessage = "SELinux set to $updated"
-            )
+            _uiState.update {
+                it.copy(
+                    selinuxMode = updated,
+                    exportMessage = "SELinux set to $updated"
+                )
+            }
         }
     }
 
     fun exportFullReport() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isExporting = true)
+            _uiState.update { it.copy(isExporting = true) }
             try {
                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
 
@@ -131,20 +136,24 @@ class DiagnosticsViewModel : ViewModel() {
                     content = report.toByteArray()
                 )
 
-                _uiState.value = _uiState.value.copy(
-                    isExporting = false,
-                    exportMessage = "Saved report to $location"
-                )
+                _uiState.update {
+                    it.copy(
+                        isExporting = false,
+                        exportMessage = "Saved report to $location"
+                    )
+                }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isExporting = false,
-                    exportMessage = "Export failed: ${e.message}"
-                )
+                _uiState.update {
+                    it.copy(
+                        isExporting = false,
+                        exportMessage = "Export failed: ${e.message}"
+                    )
+                }
             }
         }
     }
 
     fun clearMessage() {
-        _uiState.value = _uiState.value.copy(exportMessage = null)
+        _uiState.update { it.copy(exportMessage = null) }
     }
 }
