@@ -28,9 +28,12 @@ class PoxApplication : Application() {
         // the first dashboard read does not pay for the su prompt.
         appScope.launch {
             ShellUtils.prewarm()
-            // The kernel keeps the charge cap in RAM and resets it to 100 on
-            // boot; repair it here when the boot receiver could not run.
-            runCatching { TuningRepository.restoreChargeLimitFromPrefs() }
+            // The kernel keeps the charge cap and tuning presets in RAM and resets them to
+            // defaults on boot; repair them here when the boot receiver could not run.
+            runCatching {
+                TuningRepository.restoreChargeLimitFromPrefs()
+                TuningRepository.reapplyBoundPreset()
+            }
         }
     }
 
