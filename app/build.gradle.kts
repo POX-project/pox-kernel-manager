@@ -13,8 +13,8 @@ android {
         applicationId = "com.pox.kernelmanager"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "2.0.1"
+        versionCode = 12
+        versionName = "2.0.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
