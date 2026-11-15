@@ -12,6 +12,7 @@ import com.pox.kernelmanager.data.root.ShellUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 import com.pox.kernelmanager.data.model.BrainlessProfile
@@ -50,67 +51,75 @@ class FeaturesViewModel : ViewModel() {
 
     fun loadFeatures() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.update { it.copy(isLoading = true) }
             val isRoot = ShellUtils.isRootAvailable()
             val feat = TuningRepository.getTuningFeatures()
             val colorProfiles = CustomProfilesRepository.getColorProfiles()
             val kprofiles = CustomProfilesRepository.getKprofiles()
             val boundTitle = TuningRepository.getActiveBoundPresetTitle()
             val customized = TuningRepository.isAdvancedCustomized()
-            _uiState.value = FeaturesUiState(
-                features = feat,
-                isRootGranted = isRoot,
-                isLoading = false,
-                boundModeTitle = boundTitle,
-                isAdvancedCustomized = customized,
-                customColorProfiles = colorProfiles,
-                customKprofiles = kprofiles
-            )
+            _uiState.update {
+                it.copy(
+                    features = feat,
+                    isRootGranted = isRoot,
+                    isLoading = false,
+                    boundModeTitle = boundTitle,
+                    isAdvancedCustomized = customized,
+                    customColorProfiles = colorProfiles,
+                    customKprofiles = kprofiles
+                )
+            }
         }
     }
 
     fun applyBrainlessProfile(profile: BrainlessProfile) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.update { it.copy(isLoading = true) }
             val result = TuningRepository.applyBrainlessProfile(profile)
             val refreshed = TuningRepository.getTuningFeatures()
-            _uiState.value = _uiState.value.copy(
-                features = refreshed,
-                isLoading = false,
-                boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
-                isAdvancedCustomized = false,
-                feedbackMessage = result.message
-            )
+            _uiState.update {
+                it.copy(
+                    features = refreshed,
+                    isLoading = false,
+                    boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
+                    isAdvancedCustomized = false,
+                    feedbackMessage = result.message
+                )
+            }
         }
     }
 
     fun applyEasyPreset(config: EasyPresetConfig) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.update { it.copy(isLoading = true) }
             val result = TuningRepository.applyEasyPreset(config)
             val refreshed = TuningRepository.getTuningFeatures()
-            _uiState.value = _uiState.value.copy(
-                features = refreshed,
-                isLoading = false,
-                boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
-                isAdvancedCustomized = false,
-                feedbackMessage = result.message
-            )
+            _uiState.update {
+                it.copy(
+                    features = refreshed,
+                    isLoading = false,
+                    boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
+                    isAdvancedCustomized = false,
+                    feedbackMessage = result.message
+                )
+            }
         }
     }
 
     fun resetToBoundModeDefaults() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.update { it.copy(isLoading = true) }
             val result = TuningRepository.reapplyBoundPreset()
             val refreshed = TuningRepository.getTuningFeatures()
-            _uiState.value = _uiState.value.copy(
-                features = refreshed,
-                isLoading = false,
-                boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
-                isAdvancedCustomized = false,
-                feedbackMessage = result.message
-            )
+            _uiState.update {
+                it.copy(
+                    features = refreshed,
+                    isLoading = false,
+                    boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
+                    isAdvancedCustomized = false,
+                    feedbackMessage = result.message
+                )
+            }
         }
     }
 
@@ -125,12 +134,14 @@ class FeaturesViewModel : ViewModel() {
         viewModelScope.launch {
             val result = block()
             val refreshed = TuningRepository.getTuningFeatures()
-            _uiState.value = _uiState.value.copy(
-                features = refreshed,
-                boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
-                isAdvancedCustomized = TuningRepository.isAdvancedCustomized(),
-                feedbackMessage = result.message
-            )
+            _uiState.update {
+                it.copy(
+                    features = refreshed,
+                    boundModeTitle = TuningRepository.getActiveBoundPresetTitle(),
+                    isAdvancedCustomized = TuningRepository.isAdvancedCustomized(),
+                    feedbackMessage = result.message
+                )
+            }
         }
     }
 
@@ -264,13 +275,15 @@ fun setZramSizeMb(sizeMb: Long) = apply { TuningRepository.setZramSizeMb(sizeMb)
     }
 
     private fun refreshProfilesList() {
-        _uiState.value = _uiState.value.copy(
-            customColorProfiles = CustomProfilesRepository.getColorProfiles(),
-            customKprofiles = CustomProfilesRepository.getKprofiles()
-        )
+        _uiState.update {
+            it.copy(
+                customColorProfiles = CustomProfilesRepository.getColorProfiles(),
+                customKprofiles = CustomProfilesRepository.getKprofiles()
+            )
+        }
     }
 
     fun clearFeedback() {
-        _uiState.value = _uiState.value.copy(feedbackMessage = null)
+        _uiState.update { it.copy(feedbackMessage = null) }
     }
 }
