@@ -35,13 +35,19 @@ class BootRestoreReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 repeat(ATTEMPTS) {
-                    val restored = runCatching {
+                    val chargeRestored = runCatching {
                         TuningRepository.restoreChargeLimitFromPrefs(force = true)
                     }.getOrElse {
                         Log.w(TAG, "Charge-limit restore failed", it)
                         false
                     }
-                    if (restored) return@launch
+                    val presetRestored = runCatching {
+                        TuningRepository.reapplyBoundPreset().isHardwareApplied
+                    }.getOrElse {
+                        Log.w(TAG, "Bound-preset restore failed", it)
+                        false
+                    }
+                    if (chargeRestored && presetRestored) return@launch
                     delay(RETRY_DELAY_MS)
                 }
             } finally {
