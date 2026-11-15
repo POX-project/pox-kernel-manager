@@ -7,6 +7,7 @@ import com.pox.kernelmanager.data.model.DeviceInfo
 import com.pox.kernelmanager.data.model.HardwareStats
 import com.pox.kernelmanager.data.repo.HardwareRepository
 import com.pox.kernelmanager.data.root.ShellUtils
+import com.pox.kernelmanager.data.learning.AdaptiveLearningManager
 import com.pox.kernelmanager.util.TelegramShare
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -82,6 +83,11 @@ class DashboardViewModel : ViewModel() {
                 delay(3000)
                 try {
                     val stats = HardwareRepository.getHardwareStats()
+                    AdaptiveLearningManager.recordUsageFeedback(
+                        sampleTempC = stats.batteryTempC,
+                        vMv = stats.batteryVoltageMv,
+                        iMa = stats.batteryCurrentMa
+                    )
                     _uiState.value = _uiState.value.copy(stats = stats)
                 } catch (_: Exception) { }
             }
