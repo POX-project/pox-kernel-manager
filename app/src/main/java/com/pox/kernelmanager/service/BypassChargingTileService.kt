@@ -17,10 +17,18 @@ import kotlinx.coroutines.launch
 class BypassChargingTileService : TileService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    @Volatile
+    private var isListening = false
 
     override fun onStartListening() {
         super.onStartListening()
+        isListening = true
         updateTileState()
+    }
+
+    override fun onStopListening() {
+        isListening = false
+        super.onStopListening()
     }
 
     override fun onClick() {
@@ -45,6 +53,7 @@ class BypassChargingTileService : TileService() {
         serviceScope.launch(Dispatchers.IO) {
             val active = forcedActive ?: isBypassActive()
             launch(Dispatchers.Main) {
+                if (!isListening) return@launch
                 qsTile?.let { tile ->
                     tile.state = if (active) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
                     tile.icon = Icon.createWithResource(this@BypassChargingTileService, R.drawable.ic_qs_bypass)
